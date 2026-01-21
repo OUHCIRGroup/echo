@@ -12,6 +12,7 @@
     "firebase": "^10.0.0",
     "highlight.js": "^11.8.0",
     "jabber": "^1.5.3",
+    "jszip": "^3.10.1",
     "openai": "^4.38.4",
     "openai-streaming-hooks": "^2.0.0",
     "react": "^18.2.0",

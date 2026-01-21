@@ -1,3 +1,63 @@
+// import { useContext, useEffect, useState } from "react";
+// import Navbar from "../chat/navbar";
+// import NoteBar from "../chat/NoteBar";
+// import TaskContext from "../context/task-context";
+// import EndTaskPopUp from "../chat/EndTaskPopUp";
+// import SearchPage from "./SearchPage";
+// import AuthContext from "../context/auth-context";
+// import InstructionsPopUp from "../questionnaire/InstructionsPopUp";
+// import { Timestamp, setDoc, doc } from "firebase/firestore";
+// import { db } from "../firebase-config";
+
+// const MainSearchTask = () => {
+//   const [showInstructions, setShowInstructions] = useState(true);
+//   const authCtx = useContext(AuthContext);
+//   const taskCtx = useContext(TaskContext);
+//   const instructionText =
+//     "Respond to the 'Current task' on the left, using 'Search the web...' for research. Evaluate each result, compile your answer in the right-side note box, and submit when ready";
+//   // save the start time
+//   useEffect(() => {
+//     const saveStartTime = async () => {
+//       try {
+//         const startTime = Timestamp.now();
+//         const userDocRef = doc(db, "searchTask", authCtx.user.uid);
+//         await setDoc(userDocRef, { startedTs: startTime }, { merge: true });
+//         console.log("Start time saved");
+//       } catch (error) {
+//         console.error("Error saving start time:", error);
+//       }
+//     };
+//     if (authCtx.user) {
+//       saveStartTime();
+//     }
+//   }, [authCtx.user]);
+
+//   return (
+//     <div className="flex flex-row w-screen">
+//       <Navbar setShowInstructions={setShowInstructions} />
+//       <div className="w-[80%] h-screen">
+//        <SearchPage />
+//       </div>
+//       <NoteBar />
+//       {taskCtx.showEndTaskPopUp && (
+//         <div className="fixed top-0 left-0 w-screen h-screen flex items-center justify-center">
+//           <EndTaskPopUp collectionName="searchTask" />
+//         </div>
+//       )}
+//       {showInstructions && (
+//         <div className="fixed top-0 left-0 w-screen h-screen flex items-center justify-center">
+//           <InstructionsPopUp
+//             instructionText={instructionText}
+//             setShowInstructions={setShowInstructions}
+//           />
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// export default MainSearchTask;
+
 import { useContext, useEffect, useState } from "react";
 import Navbar from "../chat/navbar";
 import NoteBar from "../chat/NoteBar";
@@ -8,14 +68,36 @@ import AuthContext from "../context/auth-context";
 import InstructionsPopUp from "../questionnaire/InstructionsPopUp";
 import { Timestamp, setDoc, doc } from "firebase/firestore";
 import { db } from "../firebase-config";
+import { useTaskInstructions } from "../hooks/useTaskInstructions";
+import TaskInstructionPopup from "../components/TaskInstructionPopup";
 
 const MainSearchTask = () => {
   const [showInstructions, setShowInstructions] = useState(true);
+  const [timeRemaining, setTimeRemaining] = useState(null);
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
+
+  // Task instructions hook
+  const {
+    currentPopup,
+    dismissPopup,
+    triggerAfterResponse,
+    isLoading: instructionsLoading,
+  } = useTaskInstructions({
+    timeRemainingSeconds: timeRemaining,
+  });
+
+  // Expose triggerAfterResponse to TaskContext so SearchPage can call it
+  useEffect(() => {
+    if (taskCtx.setTriggerAfterResponse) {
+      taskCtx.setTriggerAfterResponse(() => triggerAfterResponse);
+    }
+  }, [triggerAfterResponse]);
+
   const instructionText =
     "Respond to the 'Current task' on the left, using 'Search the web...' for research. Evaluate each result, compile your answer in the right-side note box, and submit when ready";
-  // save the start time
+
+  // Save the start time
   useEffect(() => {
     const saveStartTime = async () => {
       try {
@@ -32,18 +114,29 @@ const MainSearchTask = () => {
     }
   }, [authCtx.user]);
 
+  // Update time remaining from navbar timer
+  useEffect(() => {
+    if (taskCtx.timeRemaining !== undefined) {
+      setTimeRemaining(taskCtx.timeRemaining);
+    }
+  }, [taskCtx.timeRemaining]);
+
   return (
     <div className="flex flex-row w-screen">
       <Navbar setShowInstructions={setShowInstructions} />
       <div className="w-[80%] h-screen">
-       <SearchPage />
+        <SearchPage onSearchCompleted={triggerAfterResponse} />
       </div>
       <NoteBar />
+
+      {/* End Task Popup */}
       {taskCtx.showEndTaskPopUp && (
         <div className="fixed top-0 left-0 w-screen h-screen flex items-center justify-center">
           <EndTaskPopUp collectionName="searchTask" />
         </div>
       )}
+
+      {/* Initial Instructions Popup */}
       {showInstructions && (
         <div className="fixed top-0 left-0 w-screen h-screen flex items-center justify-center">
           <InstructionsPopUp
@@ -51,6 +144,15 @@ const MainSearchTask = () => {
             setShowInstructions={setShowInstructions}
           />
         </div>
+      )}
+
+      {/* Task Instruction Popups (from admin config) */}
+      {!showInstructions && currentPopup && (
+        <TaskInstructionPopup
+          popup={currentPopup}
+          onDismiss={dismissPopup}
+          isSubmitConfirmation={currentPopup.trigger === "onSubmit"}
+        />
       )}
     </div>
   );

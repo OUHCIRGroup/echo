@@ -14,11 +14,7 @@ import TaskContext from "../context/task-context";
 import EditNoteReminder from "./EditNoteReminder";
 import OpenAI from "openai";
 import Reminder from "../common/Reminder";
-
-const openai = new OpenAI({
-  apiKey: process.env.REACT_APP_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
+import { getOpenAIApiKey } from "../utils/apiSettings";
 
 function ChatBox() {
   const [prompt, setPrompt] = useState("");
@@ -28,13 +24,69 @@ function ChatBox() {
   const [responseID, setResponseID] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [promptResponseArray, setPromptResponseArray] = useState([]);
+  const [openaiClient, setOpenaiClient] = useState(null);
+  const [apiKeyError, setApiKeyError] = useState(null);
 
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
 
   const bgObj = { user: "bg-[#f9f9f9]", ai: "bg-[#FFFFFF]" };
 
-  // pull the chat history from the database
+  // Initialize OpenAI client with API key from the participant's assigned admin
+  useEffect(() => {
+    const initializeOpenAI = async () => {
+      if (!authCtx.user?.uid) return;
+
+      try {
+        // Get the adminId associated with this participant
+        let adminId = null;
+
+        // If current user is an admin, use their own keys
+        if (authCtx.isAdmin) {
+          adminId = authCtx.user.uid;
+          console.log("User is admin, using own API keys");
+        } else {
+          // Get the adminId from the participant's user document
+          adminId = await authCtx.getParticipantAdminId(authCtx.user.uid);
+          console.log("Participant's adminId:", adminId);
+        }
+
+        if (!adminId) {
+          setApiKeyError(
+            "No admin associated with this account. Please contact the study administrator.",
+          );
+          return;
+        }
+
+        // Fetch the API key for this admin
+        const apiKey = await getOpenAIApiKey(adminId);
+
+        if (apiKey) {
+          const client = new OpenAI({
+            apiKey: apiKey,
+            dangerouslyAllowBrowser: true,
+          });
+          setOpenaiClient(client);
+          setApiKeyError(null);
+          console.log(
+            "OpenAI client initialized successfully for adminId:",
+            adminId,
+          );
+        } else {
+          setApiKeyError(
+            "OpenAI API key not configured. Please contact the study administrator.",
+          );
+        }
+      } catch (error) {
+        console.error("Error initializing OpenAI:", error);
+        setApiKeyError("Failed to load API configuration.");
+      }
+    };
+
+    initializeOpenAI();
+  }, [authCtx.user?.uid, authCtx.isAdmin]);
+
+  // Pull the chat history from the database
   useEffect(() => {
     const getChatHistory = async () => {
       console.log("Getting the updated chat history");
@@ -63,6 +115,13 @@ function ChatBox() {
   }, [authCtx.user, taskCtx.showRatingPopUp]);
 
   const getAPIResponse = async (array, promptID) => {
+    if (!openaiClient) {
+      alert(
+        "OpenAI is not configured. Please contact the study administrator.",
+      );
+      return;
+    }
+
     try {
       setIsLoading(true);
       const filteredMessages = array.map((message) => ({
@@ -72,7 +131,7 @@ function ChatBox() {
 
       const typingStartTime = new Date();
 
-      const stream = await openai.chat.completions.create({
+      const stream = await openaiClient.chat.completions.create({
         model: "gpt-4-turbo-preview",
         messages: filteredMessages,
         stream: true,
@@ -91,7 +150,7 @@ function ChatBox() {
               id: tempResponseID,
             },
           ];
-          setPromptResponseArray(updatedArray); // Update the state with each part of the response
+          setPromptResponseArray(updatedArray);
         }
       }
       setResponseID(tempResponseID);
@@ -107,14 +166,20 @@ function ChatBox() {
       };
       // Save the complete response to Firestore database
       saveChatHistory(formData);
+
+      // Trigger task instruction popup (if configured)
+      // if (taskCtx.triggerAfterResponse) {
+      //   taskCtx.triggerAfterResponse();
+      // }
     } catch (error) {
       console.error("Error fetching data:", error);
+      alert("Error communicating with ChatGPT. Please try again.");
     }
     setIsLoading(false);
   };
 
   const saveChatHistory = async (formData) => {
-    // Get a reference to the searchTask document
+    // Get a reference to the chatTasks document
     const chatTaskRef = doc(db, "chatTasks", authCtx.user.uid);
 
     // Check if the document exists
@@ -180,10 +245,12 @@ function ChatBox() {
             role="assistant"
             ratingID={message?.ratingID}
             stringText={message.content}
-            text=<ReactMarkdown
-              components={renderers}
-              children={message.content}
-            />
+            text={
+              <ReactMarkdown
+                components={renderers}
+                children={message.content}
+              />
+            }
             bgColor={bgObj.ai}
             profile_image={ai_profile}
           />
@@ -199,6 +266,13 @@ function ChatBox() {
 
   return (
     <div className="bg-[#FFFFFF] flex w-full flex-col">
+      {/* API Key Error Banner */}
+      {apiKeyError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded m-4">
+          <strong>Configuration Error:</strong> {apiKeyError}
+        </div>
+      )}
+
       <div className="w-full mb-56">{messageComponents}</div>
       <div className="fixed bottom-0 mb-8 flex flex-col left-[45%] w-[50%] transform -translate-x-1/2 ">
         <MsgEntry

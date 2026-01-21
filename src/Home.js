@@ -1,3 +1,309 @@
+// import React, { useEffect, useState } from "react";
+// import checkbox_icon from "./assets/common/checkbox.svg";
+// import show_more_icon from "./assets/common/show_more.svg";
+// import circle_icon from "./assets/common/circle_icon.svg";
+// import { FlowContext } from "./context/flow-context";
+// import { useNavigate } from "react-router-dom";
+// import { useContext } from "react";
+// import TaskContext from "./context/task-context";
+// import AuthContext from "./context/auth-context";
+// import { useStudyFlow } from "./context/study-flow-context";
+// import InstructionPopup from "./components/InstructionPopup";
+
+// const Home = ({ onSelectItem }) => {
+//   const flowCtx = useContext(FlowContext);
+//   const taskCtx = useContext(TaskContext);
+//   const authCtx = useContext(AuthContext);
+//   const { enabledSteps, isLoading: isFlowLoading } = useStudyFlow();
+//   const navigate = useNavigate();
+//   const [isAssigningTasks, setIsAssigningTasks] = useState(false);
+//   const [showInstruction, setShowInstruction] = useState(false);
+//   const [currentInstruction, setCurrentInstruction] = useState(null);
+//   const [pendingNavigation, setPendingNavigation] = useState(null);
+
+//   // Assign tasks if not already assigned
+//   useEffect(() => {
+//     const assignTasksIfNeeded = async () => {
+//       if (authCtx.user && !taskCtx.tasks.firstTask && !isAssigningTasks) {
+//         console.log("No tasks assigned, assigning now...");
+//         setIsAssigningTasks(true);
+//         await taskCtx.setTasks(authCtx.user);
+//         setIsAssigningTasks(false);
+//       }
+//     };
+
+//     assignTasksIfNeeded();
+//   }, [authCtx.user, taskCtx.tasks.firstTask]);
+
+//   const firstTaskShort = taskCtx.tasks.firstTask;
+
+//   // Map flow state keys to actual completion status
+//   const getCompletionStatus = (flowStateKey) => {
+//     const statusMap = {
+//       demographyCompleted: flowCtx.demographyCompleted,
+//       preTask1Completed: flowCtx.preTask1Completed,
+//       task1Completed: flowCtx.task1Completed,
+//       postTask1Completed: flowCtx.postTask1Completed,
+//       sessionExperienceSurvey1Completed:
+//         flowCtx.sessionExperienceSurvey1Completed,
+//       isEndOfStudySurveyCompleted: flowCtx.isEndOfStudySurveyCompleted,
+//     };
+//     return statusMap[flowStateKey] || false;
+//   };
+
+//   // Get the actual path for a step (handle task type replacement)
+//   const getStepPath = (step) => {
+//     if (step.isTaskStep) {
+//       return `/${firstTaskShort}?firstTask=true&flowState=setTask1Completed`;
+//     }
+//     if (step.requiresTask) {
+//       // Steps that need task info in query params
+//       const flowStateMap = {
+//         preTask1Completed: "setPreTask1Completed",
+//         postTask1Completed: "setPostTask1Completed",
+//         sessionExperienceSurvey1Completed:
+//           "setSessionExperienceSurvey1Completed",
+//       };
+//       const flowState = flowStateMap[step.flowStateKey] || "";
+//       return `${step.path}?firstTask=true&currentTask=${firstTaskShort}&flowState=${flowState}`;
+//     }
+//     return step.path;
+//   };
+
+//   // Get display title for task steps
+//   const getStepTitle = (step) => {
+//     if (step.isTaskStep) {
+//       const taskName = firstTaskShort === "chat" ? "ChatGPT" : "Search Engine";
+//       return `Task: ${taskName} + Answer the Question`;
+//     }
+//     return step.title;
+//   };
+
+//   // Build tasks array from enabled steps
+//   const buildTasksFromFlow = () => {
+//     const tasks = [];
+//     let previousCompleted = true;
+
+//     // Add task type header before pre-task
+//     const preTaskIndex = enabledSteps.findIndex((s) => s.id === "preTask");
+//     const mainTaskIndex = enabledSteps.findIndex((s) => s.id === "mainTask");
+
+//     enabledSteps.forEach((step, index) => {
+//       // Insert task type header before pre-task or main task
+//       if (
+//         index === preTaskIndex ||
+//         (preTaskIndex === -1 && index === mainTaskIndex)
+//       ) {
+//         const taskTypeName =
+//           firstTaskShort === "chat" ? "ChatGPT Task" : "Search Engine Task";
+//         tasks.push({
+//           title: taskTypeName || "Loading...",
+//           isText: true,
+//         });
+//       }
+
+//       // Insert "End of Study" header before end of study survey
+//       if (step.id === "endOfStudy") {
+//         tasks.push({
+//           title: "End of Study",
+//           isText: true,
+//         });
+//       }
+
+//       const isCompleted = getCompletionStatus(step.flowStateKey);
+
+//       tasks.push({
+//         id: step.id,
+//         title: getStepTitle(step),
+//         completed: isCompleted,
+//         path: getStepPath(step),
+//         canNavigate: previousCompleted,
+//         allowEntryUponCompletion: true,
+//         estimatedTime: step.estimatedTime,
+//         instructions: step.instructions,
+//       });
+
+//       // Update previousCompleted for next iteration
+//       previousCompleted = isCompleted;
+//     });
+
+//     return tasks;
+//   };
+
+//   const tasks = buildTasksFromFlow();
+
+//   useEffect(() => {
+//     const urlParams = new URLSearchParams(window.location.search);
+//     const refresh = urlParams.get("refresh");
+//     if (refresh) {
+//       navigate("/home", { replace: true });
+//       window.location.reload();
+//     }
+//   }, [flowCtx.isLoading]);
+
+//   const handleNavigation = (task) => () => {
+//     // Don't navigate if tasks aren't loaded yet
+//     if (!taskCtx.tasks.firstTask) {
+//       alert("Please wait, tasks are being assigned...");
+//       return;
+//     }
+
+//     if (task.canNavigate) {
+//       // If the task is completed and not allowed entry upon completion
+//       if (task.completed && !task.allowEntryUponCompletion) {
+//         alert("You have already completed this task");
+//         return;
+//       }
+
+//       // Check for before instructions
+//       if (task.instructions?.before?.enabled && !task.completed) {
+//         setCurrentInstruction({
+//           title: task.instructions.before.title,
+//           message: task.instructions.before.message,
+//           type: "info",
+//         });
+//         setPendingNavigation(task.path);
+//         setShowInstruction(true);
+//       } else {
+//         navigate(task.path);
+//       }
+//     } else {
+//       alert("Please complete the previous item");
+//     }
+//   };
+
+//   const handleInstructionClose = () => {
+//     setShowInstruction(false);
+//     if (pendingNavigation) {
+//       navigate(pendingNavigation);
+//       setPendingNavigation(null);
+//     }
+//     setCurrentInstruction(null);
+//   };
+
+//   // Show loading state while tasks are being assigned or flow is loading
+//   if (
+//     isAssigningTasks ||
+//     (!taskCtx.tasks.firstTask && authCtx.user) ||
+//     isFlowLoading
+//   ) {
+//     return (
+//       <div className="flex flex-col justify-center w-screen h-screen items-center">
+//         <div className="text-xl text-gray-600">Loading study...</div>
+//         <div className="text-sm text-gray-400 mt-2">Please wait</div>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div className="flex flex-col justify-center w-screen h-screen items-center">
+//       {/* Instruction Popup */}
+//       <InstructionPopup
+//         isOpen={showInstruction}
+//         onClose={handleInstructionClose}
+//         title={currentInstruction?.title}
+//         message={currentInstruction?.message}
+//         type={currentInstruction?.type || "info"}
+//       />
+
+//       {/* Top-right button group */}
+//       <div className="fixed top-4 right-4 z-50 flex gap-3">
+//         {/* Admin Panel Button - Only shown for admins */}
+//         {authCtx.isAdmin && (
+//           <button
+//             onClick={() => navigate("/admin")}
+//             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
+//           >
+//             Switch to Admin Panel
+//           </button>
+//         )}
+
+//         {/* Logout Button */}
+//         <button
+//           onClick={() => {
+//             authCtx.logout();
+//             navigate("/");
+//           }}
+//           className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
+//         >
+//           Logout
+//         </button>
+//       </div>
+
+//       <div className="task-list w-[40%] overflow-y-auto mt-10">
+//         {tasks.map((task, index) => {
+//           if (task.isText) {
+//             return (
+//               <div
+//                 key={`text-${index}`}
+//                 className="text-black text-[16px] text-center my-2 mr-20"
+//               >
+//                 {task.title}
+//               </div>
+//             );
+//           } else {
+//             return (
+//               <div
+//                 key={task.id || index}
+//                 className="flex items-center justify-stretch bg-[#e3e3e3] p-4 text-black w-full
+//                         border-b-[1px] border-[#f9f9f9] text-[14px] hover:cursor-pointer"
+//                 onClick={handleNavigation(task)}
+//               >
+//                 <span className="text-green-600">
+//                   {task.completed ? (
+//                     <img
+//                       src={checkbox_icon}
+//                       alt="Completed"
+//                       className="h-5 w-5 text-green-600"
+//                     />
+//                   ) : (
+//                     <img
+//                       src={circle_icon}
+//                       alt="Not Completed"
+//                       className="h-5 w-5 text-green-600"
+//                     />
+//                   )}
+//                 </span>
+//                 <div className="w-full flex flex-col">
+//                   <span
+//                     className={`${task.completed ? "" : "ml-4"} w-full px-4`}
+//                   >
+//                     {task.title}
+//                   </span>
+//                   <span className="text-[12px] ml-8">
+//                     Estimated duration:
+//                     <span className="text-red-600 ml-2">
+//                       {task.estimatedTime}
+//                     </span>
+//                   </span>
+//                 </div>
+//                 <span>
+//                   <button>
+//                     <img
+//                       src={show_more_icon}
+//                       alt="Show More"
+//                       className="h-5 w-5 text-green-600"
+//                     />
+//                   </button>
+//                 </span>
+//               </div>
+//             );
+//           }
+//         })}
+//       </div>
+//       <div className="text-black text-[20px]md:text-[14px] mt-20 md:mt-6 w-[30%] text-center">
+//         <p className="text-red-600 italic">Scroll to see all tasks</p>
+//         <p>
+//           Please, complete each item in the study in the order they are listed.
+//           You can only move to the next item when the current item is completed.
+//         </p>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Home;
+
 import React, { useEffect } from "react";
 import checkbox_icon from "./assets/common/checkbox.svg";
 import show_more_icon from "./assets/common/show_more.svg";
@@ -7,78 +313,122 @@ import { useNavigate } from "react-router-dom";
 import { useContext } from "react";
 import TaskContext from "./context/task-context";
 import AuthContext from "./context/auth-context";
-import { get } from "firebase/database";
+import { useStudyFlow } from "./context/study-flow-context";
 
 const Home = ({ onSelectItem }) => {
   const flowCtx = useContext(FlowContext);
   const taskCtx = useContext(TaskContext);
   const authCtx = useContext(AuthContext);
+  const { enabledSteps, isLoading: isFlowLoading } = useStudyFlow();
   const navigate = useNavigate();
-  var firstTask = taskCtx.tasks.firstTask;
 
-  if (firstTask === 'chat'){
-    firstTask = "ChatGPT Task";
-  } 
-  else{
-    firstTask = "Search Engine Task";
-  }
   const firstTaskShort = taskCtx.tasks.firstTask;
 
-  const tasks = [
-    {
-      title: "Background Survey",
-      completed: flowCtx.demographyCompleted,
-      path: "/demography",
-      canNavigate: true,
-      allowEntryUponCompletion: true,
-      estimatedTime: "1-2 minutes",
-    },
-    {title: firstTask, isText: true},
-    {
-      title: "Pre-task Questionnaire",
-      completed: flowCtx.preTask1Completed,
-      path: `/pre-task?firstTask=true&currentTask=${firstTaskShort}&flowState=setPreTask1Completed`,
-      canNavigate: flowCtx.demographyCompleted,
-      allowEntryUponCompletion: true,
-      estimatedTime: "3-4 minutes",
-    },
-    {
-      title: `Task: ${firstTaskShort} + Answer the Question`,
-      completed: flowCtx.task1Completed,
-      path: `/${firstTaskShort}?firstTask=true&flowState=setTask1Completed`,
-      canNavigate: flowCtx.preTask1Completed,
-      allowEntryUponCompletion: true,
-      estimatedTime: "15 minutes or above",
-    },
-    {
-      title: "Post-task Questionnaire",
-      completed: flowCtx.postTask1Completed,
-      path: `/post-task?firstTask=true&currentTask=${firstTaskShort}&flowState=setPostTask1Completed`,
-      canNavigate: flowCtx.task1Completed,
-      allowEntryUponCompletion: true,
-      estimatedTime: "3-4 minutes",
-    },
-    {
-      title: "Session Experience Survey",
-      completed: flowCtx.sessionExperienceSurvey1Completed,
-      path: `/session-experience?firstTask=true&currentTask=${firstTaskShort}&flowState=setSessionExperienceSurvey1Completed`,
-      canNavigate: flowCtx.postTask1Completed,
-      allowEntryUponCompletion: true,
-      estimatedTime: "1-2 minutes",
-    },
-    {
-      title: "End of Study",
-      isText: true,
-    },
-    {
-      title: "End of Study Survey",
-      completed: flowCtx.isEndOfStudySurveyCompleted,
-      path: "/end",
-      canNavigate: flowCtx.sessionExperienceSurvey1Completed,
-      allowEntryUponCompletion: true,
-      estimatedTime: "~1 minute",
-    },
-  ];
+  // Debug logging
+  useEffect(() => {
+    console.log("Home.js state:", {
+      isFlowLoading,
+      isTasksLoading: taskCtx.isTasksLoading,
+      firstTask: taskCtx.tasks.firstTask,
+      user: authCtx.user?.uid,
+      enabledStepsCount: enabledSteps.length,
+    });
+  }, [
+    isFlowLoading,
+    taskCtx.isTasksLoading,
+    taskCtx.tasks.firstTask,
+    authCtx.user,
+    enabledSteps,
+  ]);
+
+  // Map flow state keys to actual completion status
+  const getCompletionStatus = (flowStateKey) => {
+    const statusMap = {
+      demographyCompleted: flowCtx.demographyCompleted,
+      preTask1Completed: flowCtx.preTask1Completed,
+      task1Completed: flowCtx.task1Completed,
+      postTask1Completed: flowCtx.postTask1Completed,
+      sessionExperienceSurvey1Completed:
+        flowCtx.sessionExperienceSurvey1Completed,
+      isEndOfStudySurveyCompleted: flowCtx.isEndOfStudySurveyCompleted,
+    };
+    return statusMap[flowStateKey] || false;
+  };
+
+  // Get the actual path for a step (handle task type replacement)
+  const getStepPath = (step) => {
+    if (step.isTaskStep) {
+      return `/${firstTaskShort}?firstTask=true&flowState=setTask1Completed`;
+    }
+    if (step.requiresTask) {
+      const flowStateMap = {
+        preTask1Completed: "setPreTask1Completed",
+        postTask1Completed: "setPostTask1Completed",
+        sessionExperienceSurvey1Completed:
+          "setSessionExperienceSurvey1Completed",
+      };
+      const flowState = flowStateMap[step.flowStateKey] || "";
+      return `${step.path}?firstTask=true&currentTask=${firstTaskShort}&flowState=${flowState}`;
+    }
+    return step.path;
+  };
+
+  // Get display title for task steps
+  const getStepTitle = (step) => {
+    if (step.isTaskStep) {
+      const taskName = firstTaskShort === "chat" ? "ChatGPT" : "Search Engine";
+      return `Task: ${taskName} + Answer the Question`;
+    }
+    return step.title;
+  };
+
+  // Build tasks array from enabled steps
+  const buildTasksFromFlow = () => {
+    const tasks = [];
+    let previousCompleted = true;
+
+    const preTaskIndex = enabledSteps.findIndex((s) => s.id === "preTask");
+    const mainTaskIndex = enabledSteps.findIndex((s) => s.id === "mainTask");
+
+    enabledSteps.forEach((step, index) => {
+      if (
+        index === preTaskIndex ||
+        (preTaskIndex === -1 && index === mainTaskIndex)
+      ) {
+        const taskTypeName =
+          firstTaskShort === "chat" ? "ChatGPT Task" : "Search Engine Task";
+        tasks.push({
+          title: taskTypeName || "Task",
+          isText: true,
+        });
+      }
+
+      if (step.id === "endOfStudy") {
+        tasks.push({
+          title: "End of Study",
+          isText: true,
+        });
+      }
+
+      const isCompleted = getCompletionStatus(step.flowStateKey);
+
+      tasks.push({
+        id: step.id,
+        title: getStepTitle(step),
+        completed: isCompleted,
+        path: getStepPath(step),
+        canNavigate: previousCompleted,
+        allowEntryUponCompletion: true,
+        estimatedTime: step.estimatedTime,
+      });
+
+      previousCompleted = isCompleted;
+    });
+
+    return tasks;
+  };
+
+  const tasks = buildTasksFromFlow();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -87,27 +437,67 @@ const Home = ({ onSelectItem }) => {
       navigate("/home", { replace: true });
       window.location.reload();
     }
-  }, [flowCtx.isLoading]);
+  }, [flowCtx.isLoading, navigate]);
 
   const handleNavigation = (task) => () => {
+    if (!taskCtx.tasks.firstTask) {
+      alert("Please wait, tasks are being loaded...");
+      return;
+    }
+
     if (task.canNavigate) {
-      // If the task is completed and the task is pre-task or chat/search task, don't allow entry
       if (task.completed && !task.allowEntryUponCompletion) {
         alert("You have already completed this task");
         return;
-      } else {
-        navigate(task.path);
       }
+      navigate(task.path);
     } else {
       alert("Please complete the previous item");
     }
   };
 
+  // Show loading while study flow config is loading
+  if (isFlowLoading) {
+    return (
+      <div className="flex flex-col justify-center w-screen h-screen items-center">
+        <div className="text-xl text-gray-600">Loading study...</div>
+        <div className="text-sm text-gray-400 mt-2">Loading configuration</div>
+      </div>
+    );
+  }
+
+  // Show loading while tasks are being fetched
+  if (taskCtx.isTasksLoading) {
+    return (
+      <div className="flex flex-col justify-center w-screen h-screen items-center">
+        <div className="text-xl text-gray-600">Loading study...</div>
+        <div className="text-sm text-gray-400 mt-2">Loading your tasks</div>
+      </div>
+    );
+  }
+
+  // If still no tasks after loading complete, show error with retry
+  if (!taskCtx.tasks.firstTask) {
+    return (
+      <div className="flex flex-col justify-center w-screen h-screen items-center">
+        <div className="text-xl text-red-600">Failed to load tasks</div>
+        <div className="text-sm text-gray-500 mt-2">
+          Please try refreshing the page
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg"
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col justify-center w-screen h-screen items-center">
       {/* Top-right button group */}
       <div className="fixed top-4 right-4 z-50 flex gap-3">
-        {/* Admin Panel Button - Only shown for admins */}
         {authCtx.isAdmin && (
           <button
             onClick={() => navigate("/admin")}
@@ -116,8 +506,7 @@ const Home = ({ onSelectItem }) => {
             Switch to Admin Panel
           </button>
         )}
-        
-        {/* Logout Button */}
+
         <button
           onClick={() => {
             authCtx.logout();
@@ -128,13 +517,13 @@ const Home = ({ onSelectItem }) => {
           Logout
         </button>
       </div>
-      
+
       <div className="task-list w-[40%] overflow-y-auto mt-10">
         {tasks.map((task, index) => {
           if (task.isText) {
             return (
               <div
-                key={index}
+                key={`text-${index}`}
                 className="text-black text-[16px] text-center my-2 mr-20"
               >
                 {task.title}
@@ -143,7 +532,7 @@ const Home = ({ onSelectItem }) => {
           } else {
             return (
               <div
-                key={index}
+                key={task.id || index}
                 className="flex items-center justify-stretch bg-[#e3e3e3] p-4 text-black w-full 
                         border-b-[1px] border-[#f9f9f9] text-[14px] hover:cursor-pointer"
                 onClick={handleNavigation(task)}

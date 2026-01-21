@@ -36,17 +36,18 @@ const SearchPage = () => {
   const textRef = useRef();
 
   const handleSearchResultClick = async (clickedObj) => {
-
     try {
-      
       // Prepare to invoke the Cloud Function
       const fetchAndStoreWebPage = httpsCallable(
         functions,
-        "fetchAndStoreWebPage"
+        "fetchAndStoreWebPage",
       );
 
       // Call the Cloud Function with the URL and customID
-      fetchAndStoreWebPage({ url: clickedObj.url, customID: clickedObj.customID })
+      fetchAndStoreWebPage({
+        url: clickedObj.url,
+        customID: clickedObj.customID,
+      })
         .then((result) => {
           console.log(result.data); // Handle success
         })
@@ -71,7 +72,7 @@ const SearchPage = () => {
 
         // Find the specific query interaction, assuming `query` is unique per interaction
         const interactionIndex = queryInteractions.findIndex(
-          (interaction) => interaction.query === query
+          (interaction) => interaction.query === query,
         );
         if (interactionIndex === -1) {
           console.error("Query interaction not found!");
@@ -160,59 +161,63 @@ const SearchPage = () => {
   };
 
   const search = async () => {
-  if (!query) return;
-  if (taskCtx.isRatingNeeded) {
-    taskCtx.setShowRatingPopUp(true);
-    return;
-  } else if (taskCtx.showEditNoteReminder) {
-    taskCtx.setShowPopUp(true);
-    return;
-  }
-  setIsLoading(true);
-  setTypingStartTime(null);
-  taskCtx.setQueryCount();
-  const qID = uid();
-  setQueryID(qID);
-  
-  try {
-    // Use Firebase Cloud Function instead of direct API call
-    const braveSearch = httpsCallable(functions, "braveSearch");
-    const result = await braveSearch({ query: query });
-    const data = result.data;
-    
-    console.log("Brave Search Results:", data);
-    
-    // Check if web results exist
-    if (!data.web || !data.web.results) {
-      throw new Error("No web results found in Brave Search response");
+    if (!query) return;
+    if (taskCtx.isRatingNeeded) {
+      taskCtx.setShowRatingPopUp(true);
+      return;
+    } else if (taskCtx.showEditNoteReminder) {
+      taskCtx.setShowPopUp(true);
+      return;
     }
+    setIsLoading(true);
+    setTypingStartTime(null);
+    taskCtx.setQueryCount();
+    const qID = uid();
+    setQueryID(qID);
 
-    // Transform Brave Search results to match the expected format
-    const localSearchResults = data.web.results.map((result) => ({
-      title: result.title,
-      url: result.url,
-      snippet: result.description,
-      displayUrl: result.url,
-      name: result.title,
-      customID: uid(),
-      favicon: result.meta_url?.favicon,
-    }));
+    try {
+      // Use Firebase Cloud Function instead of direct API call
+      const braveSearch = httpsCallable(functions, "braveSearch");
+      const result = await braveSearch({ query: query });
+      const data = result.data;
 
-    // print the first favicon for testing
-    console.log("First favicon URL:", localSearchResults[0]?.favicon);
+      console.log("Brave Search Results:", data);
 
-    setSearchResults(localSearchResults); // Store the search results
-    // Update the context to show the pop-up
-    taskCtx.setIsRatingNeeded(true);
-    taskCtx.setShowEditNoteReminder(true);
-    await storeSearchResults(query, localSearchResults, qID);
-  } catch (error) {
-    console.error("Error fetching search results:", error);
-    alert("Search failed. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Check if web results exist
+      if (!data.web || !data.web.results) {
+        throw new Error("No web results found in Brave Search response");
+      }
+
+      // Transform Brave Search results to match the expected format
+      const localSearchResults = data.web.results.map((result) => ({
+        title: result.title,
+        url: result.url,
+        snippet: result.description,
+        displayUrl: result.url,
+        name: result.title,
+        customID: uid(),
+        favicon: result.meta_url?.favicon,
+      }));
+
+      // print the first favicon for testing
+      console.log("First favicon URL:", localSearchResults[0]?.favicon);
+
+      setSearchResults(localSearchResults); // Store the search results
+      // Update the context to show the pop-up
+      taskCtx.setIsRatingNeeded(true);
+      taskCtx.setShowEditNoteReminder(true);
+      await storeSearchResults(query, localSearchResults, qID);
+      // Trigger task instruction popup (if configured)
+      // if (taskCtx.triggerAfterResponse) {
+      //   taskCtx.triggerAfterResponse();
+      // }
+    } catch (error) {
+      console.error("Error fetching search results:", error);
+      alert("Search failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="p-4 w-full bg-[#FFFFFF] overflow-y-auto ">

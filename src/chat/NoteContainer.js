@@ -6,7 +6,7 @@ import { doc, setDoc, arrayUnion, Timestamp, getDoc } from "firebase/firestore";
 import TaskContext from "../context/task-context";
 import { useLocation } from "react-router-dom";
 import { Editor, EditorState, RichUtils } from "draft-js";
-import "draft-js/dist/Draft.css"; // Basic styling
+import "draft-js/dist/Draft.css";
 import { convertToRaw, convertFromRaw } from "draft-js";
 import { stateToHTML } from "draft-js-export-html";
 
@@ -14,21 +14,18 @@ const NoteContainer = (props) => {
   const [editorState, setEditorState] = useState(() =>
     EditorState.createEmpty()
   );
-  // const [noteInHTML, setNoteInHTML] = useState(""); // To store the HTML content of the note
-  // const [serializedContent, setSerializedContent] = useState(""); // To store the serialized content of the note
-  const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(false); // To control the save button visibility
+  const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(false);
   const location = useLocation();
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
+  const editorRef = useRef(null);
 
-  // This useEffect will monitor any changes to editorState and determine whether to show the save button
+  // Monitor changes to editorState and determine whether to show the save button
   useEffect(() => {
     const contentState = editorState.getCurrentContent();
     const textLength = contentState.getPlainText("").trim().length;
     var localNoteInHTML = stateToHTML(contentState);
     var localSerialized = JSON.stringify(convertToRaw(contentState));
-    // setNoteInHTML(localNoteInHTML);
-    // setSerializedContent(localSerialized);
     taskCtx.setNote({
       noteInHTML: localNoteInHTML,
       serializedContent: localSerialized,
@@ -36,10 +33,8 @@ const NoteContainer = (props) => {
     setIsSaveButtonVisible(textLength > 0);
   }, [editorState]);
 
-  // This useEffect will set the editorState to the saved noteText when the component mounts
+  // Load saved noteText when the component mounts
   useEffect(() => {
-    // Pull from the database
-    // Set the editorState with the saved noteText
     const getContent = async () => {
       if (authCtx?.user?.uid) {
         const taskCategory = location.pathname.split("/")[1];
@@ -72,14 +67,6 @@ const NoteContainer = (props) => {
       const customDocID = `${authCtx.user.uid}${taskCategory}`;
       console.log(customDocID);
       const noteDocumentRef = doc(db, "notes", customDocID);
-      // // Get the current content
-      // const contentState = editorState.getCurrentContent();
-      // // Convert to HTML
-      // const noteInHTML = stateToHTML(contentState);
-      // console.log(noteInHTML); // Use or save this HTML as needed
-      // // Convert to raw JSON so the formatting is saved and we can recreate the content
-      // const rawContent = convertToRaw(contentState);
-      // const serializedContent = JSON.stringify(rawContent);
 
       const noteObject = {
         noteInHTML: taskCtx.note.noteInHTML,
@@ -89,7 +76,6 @@ const NoteContainer = (props) => {
 
       try {
         const userID = authCtx.user.uid;
-        // Set document with merge, if doesn't exist, it'll create
         await setDoc(
           noteDocumentRef,
           {
@@ -120,13 +106,94 @@ const NoteContainer = (props) => {
     return "not-handled";
   };
 
+  // Block paste operation in Draft.js Editor
+  const handlePastedText = (text, html, editorState) => {
+    // Return 'handled' to prevent the paste
+    console.log("Paste blocked in notes field");
+    return "handled";
+  };
+
+  // Block copy and cut keyboard shortcuts
+  const handleBeforeInput = (chars, editorState) => {
+    return "not-handled";
+  };
+
+  // Custom key binding to block Ctrl+C, Ctrl+X, Ctrl+V
+  const keyBindingFn = (e) => {
+    // Block Ctrl+V / Cmd+V (paste)
+    if ((e.ctrlKey || e.metaKey) && e.keyCode === 86) {
+      console.log("Paste shortcut blocked");
+      return "block-paste";
+    }
+    // Block Ctrl+C / Cmd+C (copy)
+    if ((e.ctrlKey || e.metaKey) && e.keyCode === 67) {
+      console.log("Copy shortcut blocked");
+      return "block-copy";
+    }
+    // Block Ctrl+X / Cmd+X (cut)
+    if ((e.ctrlKey || e.metaKey) && e.keyCode === 88) {
+      console.log("Cut shortcut blocked");
+      return "block-cut";
+    }
+    return undefined;
+  };
+
+  // Handle the custom key commands
+  const handleCustomKeyCommand = (command) => {
+    if (
+      command === "block-paste" ||
+      command === "block-copy" ||
+      command === "block-cut"
+    ) {
+      return "handled";
+    }
+    return handleKeyCommand(command);
+  };
+
+  // Block context menu (right click) copy/paste
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    console.log("Context menu blocked in notes field");
+    return false;
+  };
+
+  // Block copy event
+  const handleCopy = (e) => {
+    e.preventDefault();
+    console.log("Copy event blocked");
+    return false;
+  };
+
+  // Block cut event
+  const handleCut = (e) => {
+    e.preventDefault();
+    console.log("Cut event blocked");
+    return false;
+  };
+
+  // Block paste event (backup for handlePastedText)
+  const handlePaste = (e) => {
+    e.preventDefault();
+    console.log("Paste event blocked");
+    return false;
+  };
+
   return (
-    <div className="flex flex-col  h-fit rounded-md  w-full text-sm items-start px-4">
-      <div className="bg-[#FFFFFF] p-3 w-full rounded-md min-h-8">
+    <div className="flex flex-col h-fit rounded-md w-full text-sm items-start px-4">
+      <div
+        className="bg-[#FFFFFF] p-3 w-full rounded-md min-h-8"
+        onContextMenu={handleContextMenu}
+        onCopy={handleCopy}
+        onCut={handleCut}
+        onPaste={handlePaste}
+      >
         <Editor
+          ref={editorRef}
           editorState={editorState}
           onChange={setEditorState}
-          handleKeyCommand={handleKeyCommand}
+          handleKeyCommand={handleCustomKeyCommand}
+          handlePastedText={handlePastedText}
+          keyBindingFn={keyBindingFn}
           placeholder="Enter your notes here..."
         />
         {}

@@ -7,19 +7,22 @@ import reportWebVitals from "./reportWebVitals";
 import { BrowserRouter } from "react-router-dom";
 import { AuthContextProvider } from "./context/auth-context";
 import { TaskContextProvider } from "./context/task-context";
-import { FlowContext, FlowContextProvider } from "./context/flow-context";
+import { FlowContextProvider } from "./context/flow-context";
+import { StudyFlowProvider } from "./context/study-flow-context";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <AuthContextProvider>
     <TaskContextProvider>
       <FlowContextProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <StudyFlowProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </StudyFlowProvider>
       </FlowContextProvider>
     </TaskContextProvider>
-  </AuthContextProvider>
+  </AuthContextProvider>,
 );
 window.scrollTo(0, document.body.scrollHeight);
 
