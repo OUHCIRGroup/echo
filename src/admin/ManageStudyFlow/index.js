@@ -539,27 +539,6 @@ const ManageStudyFlow = () => {
                 </div>
               ))}
             </div>
-
-            {/* Flow Preview */}
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="font-semibold text-gray-800 mb-3">
-                Flow Preview (Enabled Steps)
-              </h3>
-              <div className="flex flex-wrap items-center gap-2">
-                {steps
-                  .filter((s) => s.enabled)
-                  .map((step, idx, arr) => (
-                    <React.Fragment key={step.id}>
-                      <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
-                        {step.title}
-                      </span>
-                      {idx < arr.length - 1 && (
-                        <span className="text-gray-400 text-xl">→</span>
-                      )}
-                    </React.Fragment>
-                  ))}
-              </div>
-            </div>
           </div>
         )}
 

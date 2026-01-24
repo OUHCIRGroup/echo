@@ -22,7 +22,7 @@ const AdminSetup = () => {
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [adminExists, setAdminExists] = useState(false);
   const [error, setError] = useState("");
-  const [step, setStep] = useState(1); // Step 1: Setup code, Step 2: Admin details
+  const [step, setStep] = useState(1);
 
   const navigate = useNavigate();
 

@@ -207,10 +207,6 @@ const SearchPage = () => {
       taskCtx.setIsRatingNeeded(true);
       taskCtx.setShowEditNoteReminder(true);
       await storeSearchResults(query, localSearchResults, qID);
-      // Trigger task instruction popup (if configured)
-      // if (taskCtx.triggerAfterResponse) {
-      //   taskCtx.triggerAfterResponse();
-      // }
     } catch (error) {
       console.error("Error fetching search results:", error);
       alert("Search failed. Please try again.");

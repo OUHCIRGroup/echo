@@ -1,14 +1,5 @@
 import React from "react";
 
-/**
- * TaskInstructionPopup - Displays instruction popups during tasks
- *
- * Props:
- * - popup: { id, title, message, trigger } from useTaskInstructions
- * - onDismiss: callback when user dismisses the popup
- * - onConfirm: optional callback for submit confirmation (returns true to proceed)
- * - isSubmitConfirmation: if true, shows Cancel/Confirm buttons instead of Continue
- */
 const TaskInstructionPopup = ({
   popup,
   onDismiss,
@@ -17,7 +8,6 @@ const TaskInstructionPopup = ({
 }) => {
   if (!popup) return null;
 
-  // Determine popup style based on trigger type
   const getPopupStyle = () => {
     switch (popup.trigger) {
       case "onStart":

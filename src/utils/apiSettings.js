@@ -1,17 +1,11 @@
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase-config";
 
-// Cache for API settings to avoid repeated Firestore reads
 let settingsCache = null;
 let cacheTimestamp = null;
 let cachedUserId = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Fetches API settings from Firestore for a specific user
- * Uses caching to minimize Firestore reads
- * Falls back to environment variables if Firestore settings are not available
- */
 export const getApiSettings = async (userId = null) => {
   // Return cached settings if still valid and for same user
   if (
@@ -87,37 +81,21 @@ export const getApiSettings = async (userId = null) => {
   }
 };
 
-/**
- * Gets the OpenAI API key for a specific user
- * Prefers user-specific setting, falls back to global, then env variable
- */
 export const getOpenAIApiKey = async (userId = null) => {
   const settings = await getApiSettings(userId);
   return settings.openaiApiKey;
 };
 
-/**
- * Gets the Bing API key for a specific user
- * Prefers user-specific setting, falls back to global, then env variable
- */
 export const getBingApiKey = async (userId = null) => {
   const settings = await getApiSettings(userId);
   return settings.bingApiKey;
 };
 
-/**
- * Gets the Brave Search API key for a specific user
- * Prefers user-specific setting, falls back to global, then env variable
- */
 export const getBraveSearchApiKey = async (userId = null) => {
   const settings = await getApiSettings(userId);
   return settings.braveSearchApiKey;
 };
 
-/**
- * Clears the settings cache
- * Call this after updating settings in admin panel
- */
 export const clearSettingsCache = () => {
   settingsCache = null;
   cacheTimestamp = null;

@@ -24,30 +24,38 @@ const ViewResponses = () => {
   const authCtx = useContext(AuthContext);
   const navigate = useNavigate();
 
-  // Fetch all participants belonging to this admin
+  // Fetch ALL participants from the users collection
   useEffect(() => {
     const fetchParticipants = async () => {
-      if (!authCtx.user?.uid) return;
-
       try {
         setIsLoading(true);
+
+        // Fetch ALL documents from users collection
         const usersRef = collection(db, "users");
-        const q = query(usersRef, where("adminId", "==", authCtx.user.uid));
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocs(usersRef);
 
         const participantsList = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
+
+        snapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+
+          // Skip if this is an admin user (check by looking for admin-specific fields or by checking admin collection)
+          // For now, include all users - you can add filtering logic if needed
+
           participantsList.push({
-            uid: doc.id,
-            email: data.email,
+            uid: docSnapshot.id,
+            email: data.email || "No email",
+            displayName: data.displayName || "",
             mturkId: data.mturkId || "N/A",
-            createdAt: data.creationTs?.toDate?.() || null,
+            createdAt:
+              data.creationTs?.toDate?.() || data.createdAt?.toDate?.() || null,
             tasks: data.tasks || {},
             demographyCompleted: data.demographyCompleted || false,
             task1Completed: data.task1Completed || false,
             isEndOfStudySurveyCompleted:
               data.isEndOfStudySurveyCompleted || false,
+            // Store raw data for debugging
+            rawData: data,
           });
         });
 
@@ -58,6 +66,7 @@ const ViewResponses = () => {
           return b.createdAt - a.createdAt;
         });
 
+        console.log("Fetched participants:", participantsList);
         setParticipants(participantsList);
       } catch (error) {
         console.error("Error fetching participants:", error);
@@ -67,7 +76,7 @@ const ViewResponses = () => {
     };
 
     fetchParticipants();
-  }, [authCtx.user?.uid]);
+  }, []);
 
   // Fetch detailed data for selected participant
   const fetchParticipantDetails = async (participant) => {
@@ -88,7 +97,16 @@ const ViewResponses = () => {
       // 1. Background responses (stored in users/{uid})
       const userDoc = await getDoc(doc(db, "users", participant.uid));
       if (userDoc.exists()) {
-        data.background = userDoc.data().backgroundResponses || null;
+        const userData = userDoc.data();
+        data.background = userData.backgroundResponses || null;
+
+        // Also check for consent data
+        if (userData.archiveConsent || userData.futureContactConsent) {
+          data.consentData = {
+            archiveConsent: userData.archiveConsent,
+            futureContactConsent: userData.futureContactConsent,
+          };
+        }
       }
 
       // 2. Experience Survey responses
@@ -97,8 +115,8 @@ const ViewResponses = () => {
         where("userId", "==", participant.uid),
       );
       const expSnapshot = await getDocs(expQuery);
-      expSnapshot.forEach((doc) => {
-        data.experienceSurvey.push({ id: doc.id, ...doc.data() });
+      expSnapshot.forEach((docSnap) => {
+        data.experienceSurvey.push({ id: docSnap.id, ...docSnap.data() });
       });
 
       // 3. Questionnaire responses (pre-task and post-task)
@@ -107,27 +125,21 @@ const ViewResponses = () => {
         where("userID", "==", participant.uid),
       );
       const questSnapshot = await getDocs(questQuery);
-      questSnapshot.forEach((doc) => {
-        data.questionnaireResponses.push({ id: doc.id, ...doc.data() });
+      questSnapshot.forEach((docSnap) => {
+        data.questionnaireResponses.push({ id: docSnap.id, ...docSnap.data() });
       });
 
-      // 4. Chat tasks
+      // 4. Chat tasks - document ID is the user's UID
       const chatDoc = await getDoc(doc(db, "chatTasks", participant.uid));
       if (chatDoc.exists()) {
         data.chatTasks = chatDoc.data();
       }
 
-      // 5. Search tasks
-      const searchQuery = query(
-        collection(db, "searchTask"),
-        where("userID", "==", participant.uid),
-      );
-      const searchSnapshot = await getDocs(searchQuery);
-      const searchTasks = [];
-      searchSnapshot.forEach((doc) => {
-        searchTasks.push({ id: doc.id, ...doc.data() });
-      });
-      data.searchTasks = searchTasks.length > 0 ? searchTasks : null;
+      // 5. Search tasks - document ID is the user's UID
+      const searchDoc = await getDoc(doc(db, "searchTask", participant.uid));
+      if (searchDoc.exists()) {
+        data.searchTasks = searchDoc.data();
+      }
 
       // 6. Prompt ratings
       const promptQuery = query(
@@ -135,8 +147,8 @@ const ViewResponses = () => {
         where("userID", "==", participant.uid),
       );
       const promptSnapshot = await getDocs(promptQuery);
-      promptSnapshot.forEach((doc) => {
-        data.promptRatings.push({ id: doc.id, ...doc.data() });
+      promptSnapshot.forEach((docSnap) => {
+        data.promptRatings.push({ id: docSnap.id, ...docSnap.data() });
       });
 
       // 7. Search ratings
@@ -145,16 +157,474 @@ const ViewResponses = () => {
         where("userID", "==", participant.uid),
       );
       const searchRatingSnapshot = await getDocs(searchRatingQuery);
-      searchRatingSnapshot.forEach((doc) => {
-        data.searchRatings.push({ id: doc.id, ...doc.data() });
+      searchRatingSnapshot.forEach((docSnap) => {
+        data.searchRatings.push({ id: docSnap.id, ...docSnap.data() });
       });
 
+      console.log("Fetched participant data:", data);
       setParticipantData(data);
     } catch (error) {
       console.error("Error fetching participant details:", error);
     } finally {
       setIsLoadingDetails(false);
     }
+  };
+
+  // Format timestamp for display
+  const formatTimestamp = (ts) => {
+    if (!ts) return "N/A";
+    if (ts.toDate) {
+      return ts.toDate().toLocaleString();
+    }
+    if (ts instanceof Date) {
+      return ts.toLocaleString();
+    }
+    return String(ts);
+  };
+
+  // Render Questionnaire Responses (nicely formatted)
+  const renderQuestionnaireResponses = () => {
+    if (
+      !participantData?.questionnaireResponses ||
+      participantData.questionnaireResponses.length === 0
+    ) {
+      return (
+        <div className="text-gray-500 italic">
+          No questionnaire responses available.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {participantData.questionnaireResponses.map((response, idx) => (
+          <div key={idx} className="bg-gray-50 rounded-lg p-4 border">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span
+                  className={`px-2 py-1 rounded text-sm font-medium ${
+                    response.isPostTask
+                      ? "bg-purple-100 text-purple-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {response.isPostTask ? "Post-Task" : "Pre-Task"} Questionnaire
+                </span>
+                <span className="ml-2 text-gray-600 text-sm">
+                  Task:{" "}
+                  {response.currentTask === "chat"
+                    ? "ChatGPT"
+                    : response.currentTask === "search"
+                      ? "Search Engine"
+                      : response.currentTask || "N/A"}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">
+                {response.completedTs &&
+                  `Completed: ${formatTimestamp(response.completedTs)}`}
+              </div>
+            </div>
+
+            {/* Ratings */}
+            {response.ratings && Object.keys(response.ratings).length > 0 ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-700 text-sm">
+                  Intention Ratings:
+                </h4>
+                <div className="grid gap-2">
+                  {Object.entries(response.ratings).map(
+                    ([intentionId, rating], rIdx) => (
+                      <div key={rIdx} className="bg-white p-3 rounded border">
+                        <div className="text-sm text-gray-600 mb-1">
+                          Intention:{" "}
+                          <span className="font-medium">{intentionId}</span>
+                        </div>
+                        {rating.expectationRating && (
+                          <div className="text-sm">
+                            <span className="text-gray-500">Expectation:</span>{" "}
+                            <span className="font-medium text-gray-800">
+                              {rating.expectationRating}
+                            </span>
+                          </div>
+                        )}
+                        {rating.usageFrequencyRating && (
+                          <div className="text-sm">
+                            <span className="text-gray-500">
+                              Usage Frequency:
+                            </span>{" "}
+                            <span className="font-medium text-gray-800">
+                              {rating.usageFrequencyRating}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-gray-500 text-sm italic">
+                No ratings recorded
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Render Experience Survey (nicely formatted)
+  const renderExperienceSurvey = () => {
+    if (
+      !participantData?.experienceSurvey ||
+      participantData.experienceSurvey.length === 0
+    ) {
+      return (
+        <div className="text-gray-500 italic">
+          No experience survey responses available.
+        </div>
+      );
+    }
+
+    // Fields to exclude from display
+    const excludeFields = [
+      "id",
+      "userId",
+      "task",
+      "ts",
+      "timestamp",
+      "startedTs",
+      "completedTs",
+    ];
+
+    return (
+      <div className="space-y-6">
+        {participantData.experienceSurvey.map((survey, idx) => (
+          <div key={idx} className="bg-gray-50 rounded-lg p-4 border">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <span
+                className={`px-2 py-1 rounded text-sm font-medium ${
+                  survey.task === "chat"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-orange-100 text-orange-800"
+                }`}
+              >
+                {survey.task === "chat" ? "ChatGPT" : "Search Engine"}{" "}
+                Experience
+              </span>
+              <div className="text-xs text-gray-500">
+                {survey.ts && `Submitted: ${formatTimestamp(survey.ts)}`}
+              </div>
+            </div>
+
+            {/* Responses */}
+            <div className="space-y-3">
+              {Object.entries(survey)
+                .filter(([key]) => !excludeFields.includes(key))
+                .map(([key, value], rIdx) => (
+                  <div key={rIdx} className="bg-white p-3 rounded border">
+                    <div className="text-sm font-medium text-gray-700 mb-1 capitalize">
+                      {key.replace(/([A-Z])/g, " $1").trim()}:
+                    </div>
+                    <div className="text-gray-800">
+                      {typeof value === "string" && value.length > 100 ? (
+                        <p className="text-sm whitespace-pre-wrap">{value}</p>
+                      ) : (
+                        <span className="font-medium">{String(value)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Render Search Interactions (showing queries and clicked results)
+  const renderSearchInteractions = () => {
+    if (!participantData?.searchTasks) {
+      return (
+        <div className="text-gray-500 italic">
+          No search interactions available.
+        </div>
+      );
+    }
+
+    const searchData = participantData.searchTasks;
+    const queryInteractions = searchData.queryInteractions || [];
+
+    if (queryInteractions.length === 0) {
+      return (
+        <div className="text-gray-500 italic">No search queries recorded.</div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="text-sm text-gray-600 mb-2">
+          Total Queries:{" "}
+          <span className="font-medium">{queryInteractions.length}</span>
+        </div>
+
+        <div className="space-y-4 max-h-[500px] overflow-y-auto">
+          {queryInteractions.map((interaction, idx) => (
+            <div key={idx} className="bg-gray-50 rounded-lg p-4 border">
+              {/* Query */}
+              <div className="flex items-start gap-3 mb-3">
+                <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                  {idx + 1}
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-500 mb-1">Search Query</div>
+                  <div className="font-medium text-gray-800">
+                    {interaction.query}
+                  </div>
+                  {interaction.ts && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      {formatTimestamp(interaction.ts)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Results Count */}
+              {interaction.searchResults && (
+                <div className="text-sm text-gray-600 mb-2">
+                  Results returned: {interaction.searchResults.length}
+                </div>
+              )}
+
+              {/* Clicked Results */}
+              {interaction.clickedResults &&
+                interaction.clickedResults.length > 0 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="text-sm font-medium text-gray-700 mb-2">
+                      Clicked Results ({interaction.clickedResults.length}):
+                    </div>
+                    <div className="space-y-2">
+                      {interaction.clickedResults.map((clicked, cIdx) => (
+                        <div
+                          key={cIdx}
+                          className="bg-white p-2 rounded border text-sm"
+                        >
+                          <a
+                            href={clicked.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline break-all"
+                          >
+                            {clicked.url}
+                          </a>
+                          {clicked.ts && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              Clicked: {formatTimestamp(clicked.ts)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Render Ratings (only show if data exists)
+  const renderRatings = () => {
+    const hasPromptRatings =
+      participantData?.promptRatings &&
+      participantData.promptRatings.length > 0;
+    const hasSearchRatings =
+      participantData?.searchRatings &&
+      participantData.searchRatings.length > 0;
+
+    if (!hasPromptRatings && !hasSearchRatings) {
+      return <div className="text-gray-500 italic">No ratings available.</div>;
+    }
+
+    // Helper function to find search query text by queryID
+    const getSearchQueryText = (queryID) => {
+      if (!participantData?.searchTasks?.queryInteractions) return null;
+      const interaction = participantData.searchTasks.queryInteractions.find(
+        (q) => q.queryID === queryID,
+      );
+      return interaction?.query || null;
+    };
+
+    // Helper function to find user's chat prompt text by promptID
+    const getChatPromptText = (promptID) => {
+      if (!participantData?.chatTasks?.prompts) return null;
+      // Find the prompt with matching ID
+      const promptIndex = participantData.chatTasks.prompts.findIndex(
+        (p) => p.id === promptID,
+      );
+      if (promptIndex === -1) return null;
+
+      // Find the preceding user message (the one before the assistant response that was rated)
+      // Usually the rated prompt is an assistant response, so we look for the user message before it
+      for (let i = promptIndex - 1; i >= 0; i--) {
+        if (participantData.chatTasks.prompts[i].role === "user") {
+          return participantData.chatTasks.prompts[i].prompt;
+        }
+      }
+
+      // If not found, try to return the prompt itself if it's a user message
+      const prompt = participantData.chatTasks.prompts[promptIndex];
+      if (prompt.role === "user") {
+        return prompt.prompt;
+      }
+
+      return null;
+    };
+
+    // Helper function to get rating badge color
+    const getRatingBadgeStyle = (rating) => {
+      if (!rating) return "bg-gray-100 text-gray-800";
+      const ratingLower = rating.toLowerCase();
+      if (ratingLower.includes("exceeds")) {
+        return "bg-green-100 text-green-800";
+      } else if (ratingLower.includes("meets")) {
+        return "bg-yellow-100 text-yellow-800";
+      } else if (ratingLower.includes("does not")) {
+        return "bg-red-100 text-red-800";
+      }
+      return "bg-gray-100 text-gray-800";
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Prompt Ratings (Chat) */}
+        {hasPromptRatings && (
+          <div>
+            <h4 className="font-medium text-gray-800 mb-3">
+              Chat Response Ratings ({participantData.promptRatings.length})
+            </h4>
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {participantData.promptRatings.map((rating, idx) => {
+                const chatText = getChatPromptText(rating.promptID);
+                return (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border">
+                    <div className="mb-2">
+                      <span className="text-sm text-gray-600">User Query:</span>
+                      <p className="font-medium text-gray-800 mt-1">
+                        {chatText ? (
+                          chatText.length > 150 ? (
+                            chatText.substring(0, 150) + "..."
+                          ) : (
+                            chatText
+                          )
+                        ) : (
+                          <span className="italic text-gray-400">
+                            Query not found
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">Rating:</span>
+                      <span
+                        className={`px-3 py-1 rounded text-sm font-medium ${getRatingBadgeStyle(rating.rating)}`}
+                      >
+                        {rating.rating || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Search Ratings */}
+        {hasSearchRatings && (
+          <div>
+            <h4 className="font-medium text-gray-800 mb-3">
+              Search Results Ratings ({participantData.searchRatings.length})
+            </h4>
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {participantData.searchRatings.map((rating, idx) => {
+                const queryText = getSearchQueryText(rating.queryID);
+                return (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border">
+                    <div className="mb-2">
+                      <span className="text-sm text-gray-600">
+                        Search Query:
+                      </span>
+                      <p className="font-medium text-gray-800 mt-1">
+                        {queryText || (
+                          <span className="italic text-gray-400">
+                            Query not found
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">Rating:</span>
+                      <span
+                        className={`px-3 py-1 rounded text-sm font-medium ${getRatingBadgeStyle(rating.rating)}`}
+                      >
+                        {rating.rating || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Helper function to flatten nested objects for CSV export
+  const flattenObject = (obj, prefix = "") => {
+    const result = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const newKey = prefix ? `${prefix}_${key}` : key;
+        if (
+          typeof obj[key] === "object" &&
+          obj[key] !== null &&
+          !Array.isArray(obj[key]) &&
+          !(obj[key] instanceof Date) &&
+          !obj[key].toDate
+        ) {
+          Object.assign(result, flattenObject(obj[key], newKey));
+        } else if (Array.isArray(obj[key])) {
+          result[newKey] = obj[key].join("; ");
+        } else {
+          result[newKey] = obj[key];
+        }
+      }
+    }
+    return result;
+  };
+
+  // Generate CSV content from array of objects
+  const generateCSVContent = (data) => {
+    if (!data || data.length === 0) return "";
+
+    const headers = Object.keys(data[0]);
+    const csvRows = [headers.join(",")];
+
+    for (const row of data) {
+      const values = headers.map((header) => {
+        const val = row[header];
+        if (val === null || val === undefined) return "";
+        const stringVal = String(val).replace(/"/g, '""');
+        return `"${stringVal}"`;
+      });
+      csvRows.push(values.join(","));
+    }
+
+    return csvRows.join("\n");
   };
 
   // Export all data to CSV (as ZIP file)
@@ -185,7 +655,7 @@ const ViewResponses = () => {
           demographyCompleted: participant.demographyCompleted,
           task1Completed: participant.task1Completed,
           studyCompleted: participant.isEndOfStudySurveyCompleted,
-          createdAt: participant.createdAt?.toISOString() || "N/A",
+          createdAt: participant.createdAt?.toISOString?.() || "N/A",
         });
 
         // Background responses
@@ -204,12 +674,12 @@ const ViewResponses = () => {
           where("userId", "==", participant.uid),
         );
         const expSnapshot = await getDocs(expQuery);
-        expSnapshot.forEach((doc) => {
-          const data = doc.data();
+        expSnapshot.forEach((docSnap) => {
+          const expData = docSnap.data();
           allData.experienceSurveys.push({
             participantId: participant.uid,
-            task: data.task || "N/A",
-            ...flattenObject(data),
+            task: expData.task || "N/A",
+            ...flattenObject(expData),
           });
         });
 
@@ -219,12 +689,11 @@ const ViewResponses = () => {
           where("userID", "==", participant.uid),
         );
         const questSnapshot = await getDocs(questQuery);
-        questSnapshot.forEach((doc) => {
-          const data = doc.data();
-          // Flatten ratings object
+        questSnapshot.forEach((docSnap) => {
+          const questData = docSnap.data();
           const flatRatings = {};
-          if (data.ratings) {
-            Object.entries(data.ratings).forEach(([key, value]) => {
+          if (questData.ratings) {
+            Object.entries(questData.ratings).forEach(([key, value]) => {
               flatRatings[`rating_${key}_expectation`] =
                 value.expectationRating || "";
               flatRatings[`rating_${key}_frequency`] =
@@ -233,8 +702,8 @@ const ViewResponses = () => {
           }
           allData.questionnaireResponses.push({
             participantId: participant.uid,
-            isPostTask: data.isPostTask,
-            currentTask: data.currentTask,
+            isPostTask: questData.isPostTask,
+            currentTask: questData.currentTask,
             ...flatRatings,
           });
         });
@@ -247,7 +716,7 @@ const ViewResponses = () => {
               participantId: participant.uid,
               messageIndex: idx,
               role: prompt.role,
-              content: prompt.prompt?.substring(0, 500) || "", // Truncate for CSV
+              content: prompt.prompt?.substring(0, 500) || "",
               timestamp:
                 prompt.typingEndTime?.toDate?.()?.toISOString() || "N/A",
             });
@@ -255,19 +724,22 @@ const ViewResponses = () => {
         }
 
         // Search interactions
-        const searchQuery = query(
-          collection(db, "searchTask"),
-          where("userID", "==", participant.uid),
-        );
-        const searchSnapshot = await getDocs(searchQuery);
-        searchSnapshot.forEach((doc) => {
-          const data = doc.data();
-          allData.searchInteractions.push({
-            participantId: participant.uid,
-            query: data.query || "N/A",
-            timestamp: data.ts?.toDate?.()?.toISOString() || "N/A",
-          });
-        });
+        const searchDoc = await getDoc(doc(db, "searchTask", participant.uid));
+        if (searchDoc.exists()) {
+          const searchData = searchDoc.data();
+          if (searchData.queryInteractions) {
+            searchData.queryInteractions.forEach((interaction, idx) => {
+              allData.searchInteractions.push({
+                participantId: participant.uid,
+                queryIndex: idx,
+                query: interaction.query || "N/A",
+                resultsCount: interaction.searchResults?.length || 0,
+                clickedCount: interaction.clickedResults?.length || 0,
+                timestamp: interaction.ts?.toDate?.()?.toISOString() || "N/A",
+              });
+            });
+          }
+        }
 
         // Prompt ratings
         const promptQuery = query(
@@ -275,13 +747,13 @@ const ViewResponses = () => {
           where("userID", "==", participant.uid),
         );
         const promptSnapshot = await getDocs(promptQuery);
-        promptSnapshot.forEach((doc) => {
-          const data = doc.data();
+        promptSnapshot.forEach((docSnap) => {
+          const ratingData = docSnap.data();
           allData.promptRatings.push({
             participantId: participant.uid,
-            promptId: data.promptID || "N/A",
-            rating: data.rating || "N/A",
-            timestamp: data.ts?.toDate?.()?.toISOString() || "N/A",
+            promptId: ratingData.promptID || "N/A",
+            rating: ratingData.rating || "N/A",
+            timestamp: ratingData.ts?.toDate?.()?.toISOString() || "N/A",
           });
         });
 
@@ -291,13 +763,13 @@ const ViewResponses = () => {
           where("userID", "==", participant.uid),
         );
         const searchRatingSnapshot = await getDocs(searchRatingQuery);
-        searchRatingSnapshot.forEach((doc) => {
-          const data = doc.data();
+        searchRatingSnapshot.forEach((docSnap) => {
+          const ratingData = docSnap.data();
           allData.searchRatings.push({
             participantId: participant.uid,
-            queryId: data.queryID || "N/A",
-            rating: data.rating || "N/A",
-            timestamp: data.ts?.toDate?.()?.toISOString() || "N/A",
+            queryId: ratingData.queryID || "N/A",
+            rating: ratingData.rating || "N/A",
+            timestamp: ratingData.ts?.toDate?.()?.toISOString() || "N/A",
           });
         });
       }
@@ -307,8 +779,9 @@ const ViewResponses = () => {
       const timestamp = new Date().toISOString().split("T")[0];
 
       // Add each CSV to the ZIP
-      zip.file("participants.csv", generateCSVContent(allData.participants));
-
+      if (allData.participants.length > 0) {
+        zip.file("participants.csv", generateCSVContent(allData.participants));
+      }
       if (allData.backgroundResponses.length > 0) {
         zip.file(
           "background_responses.csv",
@@ -368,95 +841,6 @@ const ViewResponses = () => {
     }
   };
 
-  // Helper function to flatten nested objects
-  const flattenObject = (obj, prefix = "") => {
-    const result = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        const newKey = prefix ? `${prefix}_${key}` : key;
-        if (
-          typeof obj[key] === "object" &&
-          obj[key] !== null &&
-          !Array.isArray(obj[key]) &&
-          !(obj[key] instanceof Date)
-        ) {
-          // Skip Firestore Timestamp objects
-          if (obj[key].toDate) {
-            result[newKey] = obj[key].toDate().toISOString();
-          } else {
-            Object.assign(result, flattenObject(obj[key], newKey));
-          }
-        } else if (Array.isArray(obj[key])) {
-          result[newKey] = obj[key].join("; ");
-        } else {
-          result[newKey] = obj[key];
-        }
-      }
-    }
-    return result;
-  };
-
-  // Helper function to generate CSV content string
-  const generateCSVContent = (data) => {
-    if (!data || data.length === 0) return "";
-
-    // Get all unique headers
-    const headers = [...new Set(data.flatMap((obj) => Object.keys(obj)))];
-
-    // Create CSV content
-    const csvContent = [
-      headers.join(","),
-      ...data.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header] ?? "";
-            // Escape quotes and wrap in quotes if contains comma or newline
-            const stringValue = String(value).replace(/"/g, '""');
-            return stringValue.includes(",") ||
-              stringValue.includes("\n") ||
-              stringValue.includes('"')
-              ? `"${stringValue}"`
-              : stringValue;
-          })
-          .join(","),
-      ),
-    ].join("\n");
-
-    return csvContent;
-  };
-
-  // Helper function to convert array to CSV and download (kept for single file downloads if needed)
-  const downloadCSV = (data, filename) => {
-    const csvContent = generateCSVContent(data);
-    if (!csvContent) return;
-
-    // Create and trigger download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-  };
-
-  // Render JSON data nicely
-  const renderJSON = (data, title) => {
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      return (
-        <div className="text-gray-500 italic p-4">
-          No {title.toLowerCase()} data available.
-        </div>
-      );
-    }
-
-    return (
-      <div className="bg-gray-50 rounded-lg p-4 overflow-auto max-h-96">
-        <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </div>
-    );
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -474,7 +858,7 @@ const ViewResponses = () => {
             onClick={() => navigate("/admin/dashboard")}
             className="text-blue-500 hover:text-blue-700 mb-4 flex items-center gap-1"
           >
-            ← Back to Dashboard
+            Back to Dashboard
           </button>
           <div className="flex justify-between items-center">
             <div>
@@ -482,7 +866,7 @@ const ViewResponses = () => {
                 Participant Responses
               </h1>
               <p className="text-gray-600">
-                View and export survey responses from your participants
+                View and export survey responses from all participants
               </p>
             </div>
             <button
@@ -510,7 +894,7 @@ const ViewResponses = () => {
 
               {participants.length === 0 ? (
                 <div className="text-gray-500 text-center py-8">
-                  No participants found for your account.
+                  No participants found.
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[600px] overflow-y-auto">
@@ -524,41 +908,40 @@ const ViewResponses = () => {
                           : "bg-gray-50 hover:bg-gray-100 border border-transparent"
                       }`}
                     >
-                      <div className="font-medium text-gray-800 text-sm truncate">
-                        {participant.email}
+                      <div className="font-medium text-gray-800 truncate">
+                        {participant.email || "No email"}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        MTurk: {participant.mturkId}
+                      <div className="text-sm text-gray-500 mt-1">
+                        Task: {participant.tasks?.firstTask || "Not assigned"}
+                        {participant.tasks?.firstTaskTopic && (
+                          <span className="ml-1 text-xs">
+                            ({participant.tasks.firstTaskTopic.substring(0, 20)}
+                            ...)
+                          </span>
+                        )}
                       </div>
-                      <div className="flex gap-2 mt-2">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            participant.demographyCompleted
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          Background
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            participant.task1Completed
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          Task
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            participant.isEndOfStudySurveyCompleted
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          Complete
-                        </span>
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {participant.demographyCompleted && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                            Background ✓
+                          </span>
+                        )}
+                        {participant.task1Completed && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                            Task ✓
+                          </span>
+                        )}
+                        {participant.isEndOfStudySurveyCompleted && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                            Complete ✓
+                          </span>
+                        )}
                       </div>
+                      {participant.createdAt && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {participant.createdAt.toLocaleDateString()}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -568,7 +951,7 @@ const ViewResponses = () => {
 
           {/* Participant Details */}
           <div className="w-2/3">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="bg-white rounded-lg shadow-sm border p-6 min-h-[600px]">
               {!selectedParticipant ? (
                 <div className="text-gray-500 text-center py-16">
                   Select a participant to view their responses
@@ -582,12 +965,23 @@ const ViewResponses = () => {
                   {/* Participant Header */}
                   <div className="mb-6 pb-4 border-b">
                     <h2 className="text-xl font-semibold text-gray-800">
-                      {selectedParticipant.email}
+                      {selectedParticipant.email || "No email"}
                     </h2>
-                    <div className="text-sm text-gray-500 mt-1">
-                      MTurk ID: {selectedParticipant.mturkId} | Task:{" "}
-                      {selectedParticipant.tasks?.firstTask || "N/A"} | Topic:{" "}
-                      {selectedParticipant.tasks?.firstTaskTopic || "N/A"}
+                    <div className="text-sm text-gray-500 mt-1 space-y-1">
+                      <div>
+                        <span className="font-medium">User ID:</span>{" "}
+                        {selectedParticipant.uid}
+                      </div>
+                      <div>
+                        <span className="font-medium">MTurk ID:</span>{" "}
+                        {selectedParticipant.mturkId || "N/A"}
+                      </div>
+                      <div>
+                        <span className="font-medium">Task:</span>{" "}
+                        {selectedParticipant.tasks?.firstTask || "N/A"} |
+                        <span className="font-medium ml-2">Topic:</span>{" "}
+                        {selectedParticipant.tasks?.firstTaskTopic || "N/A"}
+                      </div>
                     </div>
                   </div>
 
@@ -630,8 +1024,8 @@ const ViewResponses = () => {
                                   key={key}
                                   className="bg-gray-50 p-3 rounded-lg"
                                 >
-                                  <div className="text-sm font-medium text-gray-600">
-                                    {key}
+                                  <div className="text-sm font-medium text-gray-600 capitalize">
+                                    {key.replace(/([A-Z])/g, " $1").trim()}
                                   </div>
                                   <div className="text-gray-800 mt-1">
                                     {Array.isArray(value)
@@ -647,6 +1041,35 @@ const ViewResponses = () => {
                             No background responses available.
                           </div>
                         )}
+
+                        {/* Consent Data */}
+                        {participantData?.consentData && (
+                          <div className="mt-6">
+                            <h4 className="font-medium text-gray-800 mb-2">
+                              Consent Responses
+                            </h4>
+                            <div className="space-y-2">
+                              <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-gray-600">
+                                  Archive Consent
+                                </div>
+                                <div className="text-gray-800">
+                                  {participantData.consentData.archiveConsent ||
+                                    "N/A"}
+                                </div>
+                              </div>
+                              <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-gray-600">
+                                  Future Contact Consent
+                                </div>
+                                <div className="text-gray-800">
+                                  {participantData.consentData
+                                    .futureContactConsent || "N/A"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -655,10 +1078,7 @@ const ViewResponses = () => {
                         <h3 className="font-medium text-gray-800 mb-3">
                           Pre/Post Task Questionnaire Responses
                         </h3>
-                        {renderJSON(
-                          participantData?.questionnaireResponses,
-                          "Questionnaire",
-                        )}
+                        {renderQuestionnaireResponses()}
                       </div>
                     )}
 
@@ -667,10 +1087,7 @@ const ViewResponses = () => {
                         <h3 className="font-medium text-gray-800 mb-3">
                           Experience Survey Responses
                         </h3>
-                        {renderJSON(
-                          participantData?.experienceSurvey,
-                          "Experience Survey",
-                        )}
+                        {renderExperienceSurvey()}
                       </div>
                     )}
 
@@ -680,7 +1097,7 @@ const ViewResponses = () => {
                           Chat Interactions
                         </h3>
                         {participantData?.chatTasks?.prompts ? (
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto">
                             {participantData.chatTasks.prompts.map(
                               (prompt, idx) => (
                                 <div
@@ -716,38 +1133,16 @@ const ViewResponses = () => {
                         <h3 className="font-medium text-gray-800 mb-3">
                           Search Interactions
                         </h3>
-                        {renderJSON(
-                          participantData?.searchTasks,
-                          "Search Interactions",
-                        )}
+                        {renderSearchInteractions()}
                       </div>
                     )}
 
                     {activeTab === "ratings" && (
                       <div>
                         <h3 className="font-medium text-gray-800 mb-3">
-                          Prompt & Search Ratings
+                          Response Ratings
                         </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-600 mb-2">
-                              Prompt Ratings
-                            </h4>
-                            {renderJSON(
-                              participantData?.promptRatings,
-                              "Prompt Ratings",
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-600 mb-2">
-                              Search Ratings
-                            </h4>
-                            {renderJSON(
-                              participantData?.searchRatings,
-                              "Search Ratings",
-                            )}
-                          </div>
-                        </div>
+                        {renderRatings()}
                       </div>
                     )}
                   </div>
