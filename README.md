@@ -52,8 +52,8 @@ npm --version
 ### Step 1: Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd fixednessEvaluation
+git clone https://github.com/OUHCIRGroup/fixedness-evaluation
+cd fixedness-evaluation
 ```
 
 ### Step 2: Install Dependencies
