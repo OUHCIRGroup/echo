@@ -1,10 +1,10 @@
-# Fixedness Evaluation Research Study
+# ECHO: An Open Research Platform for Evaluation of Chat, Human Behavior, and Outcomes
 
-A web application for conducting research studies on functional fixedness using AI tools (ChatGPT) and search engines.
+ECHO provides an extensible ecosystem for designing, deploying, and analyzing mixed-method human–AI studies.
 
 ## Table of Contents
 
-1. [What This App Does](#what-this-app-does)
+1. [Introduction](#introduction)
 2. [Prerequisites](#prerequisites)
 3. [Setup Guide](#setup-guide)
 4. [Running the Application](#running-the-application)
@@ -13,16 +13,9 @@ A web application for conducting research studies on functional fixedness using 
 
 ---
 
-## What This App Does
+## Introduction
 
-This application helps researchers study how people interact differently with ChatGPT vs. search engines. Participants complete:
-
-- A consent form and background survey
-- Two main tasks (one using ChatGPT, one using a search engine)
-- Pre and post questionnaires for each task
-- Experience surveys after each task
-
-All participant responses and interactions are automatically saved to Firebase for later analysis.
+ECHO is an open research platform designed to support mixed-method studies of human interaction with AI and digital information systems. It enables researchers across social sciences, humanities, and computing to easily design studies that integrate surveys, writing tasks, conversational interfaces, and reflective evaluations within a single workflow. Participants can complete consent and background questionnaires, engage in multiple information-seeking or AI-assisted tasks, and provide pre- and post-task feedback, while all interactions and responses are securely captured for analysis. By streamlining end-to-end study design and data collection, ECHO lowers technical barriers, fosters reproducible research, and empowers diverse communities to investigate learning, decision-making, creativity, and trust in emerging AI technologies.
 
 ---
 
@@ -52,8 +45,11 @@ npm --version
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/OUHCIRGroup/fixedness-evaluation
-cd fixedness-evaluation
+git clone https://github.com/OUHCIRGroup/echo
+```
+
+```bash
+cd echo
 ```
 
 ### Step 2: Install Dependencies
@@ -161,6 +157,8 @@ REACT_APP_ADMIN_SETUP_CODE=your_secret_code_here
 
 ### Step 6: Configure API Keys
 
+**Note:** While this guide uses OpenAI and Brave Search, ECHO supports any compatible chat and search APIs. You can modify the API endpoints in your codebase to connect alternative providers (e.g., Google Gemini,Anthropic Claude, Grok, Google Search, Bing Search).
+
 Both API keys are configured through the Admin Dashboard.
 
 1. Log in to admin panel at `http://localhost:3000/admin/login`
@@ -231,5 +229,11 @@ Access at `/admin/login`
 1. Log in to admin panel
 2. Go to **View Participant Responses**
 3. Click **Export as CSV**
+
+---
+
+## Support
+
+If you encounter any difficulties or issues, feel free to contact us at [jiqunliu@ou.edu].
 
 ---
