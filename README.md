@@ -220,7 +220,7 @@ Access at `/admin/login`
 | **Insert/View Tasks**          | Create and view research tasks                |
 | **Manage Experience Survey**   | Edit post-task questions                      |
 | **Manage Demography Survey**   | Edit background questions                     |
-| **Manage Topology**            | Configure intention categories                |
+| **Manage Typology**            | Configure intention categories                |
 | **API Settings**               | Enter OpenAI and Brave Search API keys        |
 | **View Participant Responses** | Export data as CSV                            |
 
