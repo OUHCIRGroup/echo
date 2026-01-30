@@ -94,17 +94,17 @@ const DEFAULT_TASK_INSTRUCTIONS = {
     triggerCount: 2, // Show after every N responses
     order: 2,
   },
-  rateResponse: {
-    id: "rateResponse",
-    name: "Rate Response Reminder",
-    enabled: true,
-    title: "Rate the Response",
-    message:
-      "Please rate how helpful this response was by clicking the star icon.",
-    trigger: "afterResponse",
-    triggerCount: 1, // Show after every response
-    order: 3,
-  },
+  // rateResponse: {
+  //   id: "rateResponse",
+  //   name: "Rate Response Reminder",
+  //   enabled: true,
+  //   title: "Rate the Response",
+  //   message:
+  //     "Please rate how helpful this response was by clicking the star icon.",
+  //   trigger: "afterResponse",
+  //   triggerCount: 1, // Show after every response
+  //   order: 3,
+  // },
   saveDraft: {
     id: "saveDraft",
     name: "Save Draft Reminder",
@@ -127,16 +127,16 @@ const DEFAULT_TASK_INSTRUCTIONS = {
     thresholdSeconds: 300, // 5 minutes remaining
     order: 5,
   },
-  submitConfirm: {
-    id: "submitConfirm",
-    name: "Submit Confirmation",
-    enabled: true,
-    title: "Confirm Submission",
-    message:
-      "Are you sure you want to submit? Please make sure you have completed your response and saved your notes.",
-    trigger: "onSubmit",
-    order: 6,
-  },
+  // submitConfirm: {
+  //   id: "submitConfirm",
+  //   name: "Submit Confirmation",
+  //   enabled: true,
+  //   title: "Confirm Submission",
+  //   message:
+  //     "Are you sure you want to submit? Please make sure you have completed your response and saved your notes.",
+  //   trigger: "onSubmit",
+  //   order: 6,
+  // },
 };
 
 const ManageStudyFlow = () => {
@@ -334,7 +334,7 @@ const ManageStudyFlow = () => {
             onClick={() => navigate("/admin/dashboard")}
             className="text-blue-500 hover:text-blue-700 mb-4 flex items-center gap-1"
           >
-            ← Back to Dashboard
+            Back to Dashboard
           </button>
           <div className="flex justify-between items-start">
             <div>
@@ -396,7 +396,7 @@ const ManageStudyFlow = () => {
                 : "bg-white text-gray-700 hover:bg-gray-100 border"
             }`}
           >
-            📋 Study Flow Order
+            Study Flow Order
           </button>
           <button
             onClick={() => setActiveTab("instructions")}
@@ -406,7 +406,7 @@ const ManageStudyFlow = () => {
                 : "bg-white text-gray-700 hover:bg-gray-100 border"
             }`}
           >
-            💬 Task Instructions
+            Task Instructions
           </button>
         </div>
 

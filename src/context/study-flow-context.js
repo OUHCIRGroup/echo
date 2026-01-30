@@ -92,17 +92,17 @@ const DEFAULT_TASK_INSTRUCTIONS = {
     triggerCount: 2,
     order: 2,
   },
-  rateResponse: {
-    id: "rateResponse",
-    name: "Rate Response Reminder",
-    enabled: true,
-    title: "Rate the Response",
-    message:
-      "Please rate how helpful this response was by clicking the star icon.",
-    trigger: "afterResponse",
-    triggerCount: 1,
-    order: 3,
-  },
+  // rateResponse: {
+  //   id: "rateResponse",
+  //   name: "Rate Response Reminder",
+  //   enabled: true,
+  //   title: "Rate the Response",
+  //   message:
+  //     "Please rate how helpful this response was by clicking the star icon.",
+  //   trigger: "afterResponse",
+  //   triggerCount: 1,
+  //   order: 3,
+  // },
   saveDraft: {
     id: "saveDraft",
     name: "Save Draft Reminder",
@@ -125,16 +125,16 @@ const DEFAULT_TASK_INSTRUCTIONS = {
     thresholdSeconds: 300,
     order: 5,
   },
-  submitConfirm: {
-    id: "submitConfirm",
-    name: "Submit Confirmation",
-    enabled: true,
-    title: "Confirm Submission",
-    message:
-      "Are you sure you want to submit? Please make sure you have completed your response and saved your notes.",
-    trigger: "onSubmit",
-    order: 6,
-  },
+  // submitConfirm: {
+  //   id: "submitConfirm",
+  //   name: "Submit Confirmation",
+  //   enabled: true,
+  //   title: "Confirm Submission",
+  //   message:
+  //     "Are you sure you want to submit? Please make sure you have completed your response and saved your notes.",
+  //   trigger: "onSubmit",
+  //   order: 6,
+  // },
 };
 
 export const StudyFlowContext = createContext({

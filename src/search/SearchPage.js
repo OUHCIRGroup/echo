@@ -17,16 +17,19 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import SingleResultContainer from "./SingleResultContainer";
 import EditNoteReminder from "../chat/EditNoteReminder";
-import RatePrompt from "../chat/RatePrompt";
-import RateSearchResults from "../search/RateSearchResults";
-import { click } from "@testing-library/user-event/dist/click";
 
-const SearchPage = () => {
+const SearchPage = ({
+  triggerAfterSearchQuery,
+  markResponseReceived,
+  checkPendingResponseSurvey,
+  onSurveyCompleteRef,
+}) => {
   const [query, setQuery] = useState("");
   const [queryID, setQueryID] = useState("");
   const [typingStartTime, setTypingStartTime] = useState(null);
-  const [searchResults, setSearchResults] = useState([]); // New state to hold search results
+  const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState(null); // Store query while survey is showing
 
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
@@ -35,30 +38,43 @@ const SearchPage = () => {
 
   const textRef = useRef();
 
+  // Handle survey completion - execute pending search
+  const handleSurveyComplete = () => {
+    if (pendingQuery) {
+      const queryToExecute = pendingQuery;
+      setPendingQuery(null);
+      executeSearch(queryToExecute);
+    }
+  };
+
+  // Expose the handler to parent via ref
+  if (onSurveyCompleteRef) {
+    onSurveyCompleteRef.current = handleSurveyComplete;
+  }
+
   const handleSearchResultClick = async (clickedObj) => {
+    // IMPORTANT: Open the URL first, before any async operations
+    window.open(clickedObj.url, "_blank");
+
     try {
-      // Prepare to invoke the Cloud Function
       const fetchAndStoreWebPage = httpsCallable(
         functions,
         "fetchAndStoreWebPage",
       );
 
-      // Call the Cloud Function with the URL and customID
       fetchAndStoreWebPage({
         url: clickedObj.url,
         customID: clickedObj.customID,
       })
         .then((result) => {
-          console.log(result.data); // Handle success
+          console.log(result.data);
         })
         .catch((error) => {
-          console.error("Error:", error); // Handle error
+          console.error("Error storing webpage:", error);
         });
 
-      // Reference to the searchTask document
       const searchTaskRef = doc(db, "searchTask", user.uid);
 
-      // Transaction to ensure atomic update
       await runTransaction(db, async (transaction) => {
         const searchTaskDoc = await transaction.get(searchTaskRef);
         if (!searchTaskDoc.exists()) {
@@ -66,11 +82,9 @@ const SearchPage = () => {
           return;
         }
 
-        // Extract current data
         const data = searchTaskDoc.data();
         const { queryInteractions } = data;
 
-        // Find the specific query interaction, assuming `query` is unique per interaction
         const interactionIndex = queryInteractions.findIndex(
           (interaction) => interaction.query === query,
         );
@@ -79,12 +93,8 @@ const SearchPage = () => {
           return;
         }
 
-        // Clone the interactions to avoid direct mutation
         const updatedQueryInteractions = [...queryInteractions];
-
-        // Update the clickedResults for the specific query interaction
         const interaction = updatedQueryInteractions[interactionIndex];
-        console.log(interaction);
         const updatedClickedResults = interaction.clickedResults
           ? [...interaction.clickedResults, clickedObj]
           : [clickedObj];
@@ -93,48 +103,39 @@ const SearchPage = () => {
           clickedResults: updatedClickedResults,
         };
 
-        // Update the document with the new interactions
         transaction.update(searchTaskRef, {
           queryInteractions: updatedQueryInteractions,
         });
       });
-      // Open URL in new tab
-      window.open(clickedObj.url, "_blank");
     } catch (error) {
-      console.error("Error recording click or opening webpage:", error);
-      alert("Failed to record click or open webpage. Please try again.");
+      console.error("Error recording click:", error);
     }
   };
 
-  const storeSearchResults = async (query, searchResults, queryID) => {
-    // Create a simplified version of the search results to store in Firestore
-    const simplifiedSearchResults = searchResults.map((result) => ({
+  const storeSearchResults = async (query, results, queryID) => {
+    const searchDocRef = doc(db, "searchTask", user.uid);
+
+    const simplifiedSearchResults = results.map((result) => ({
+      title: result.title,
+      url: result.url,
       snippet: result.snippet,
-      name: result.name,
-      displayUrl: result.displayUrl,
       customID: result.customID,
     }));
 
-    // Get a reference to the searchTask document
-    const searchTaskRef = doc(db, "searchTask", user.uid);
+    const existingDoc = await getDoc(searchDocRef);
 
-    // Check if the document exists
-    const docSnap = await getDoc(searchTaskRef);
-
-    if (docSnap.exists()) {
-      // If it exists, append the new query interaction
-      await updateDoc(searchTaskRef, {
+    if (existingDoc.exists()) {
+      await updateDoc(searchDocRef, {
         queryInteractions: arrayUnion({
+          ts: Timestamp.now(),
           query: query,
           queryID: queryID,
-          ts: Timestamp.now(),
           searchResults: simplifiedSearchResults,
-          clickedResults: [], // Initialize with an empty array
+          clickedResults: [],
         }),
       });
     } else {
-      // If the document does not exist, create it with the new query interaction
-      await setDoc(searchTaskRef, {
+      await setDoc(searchDocRef, {
         queryInteractions: [
           {
             ts: Timestamp.now(),
@@ -160,15 +161,8 @@ const SearchPage = () => {
     }
   };
 
-  const search = async () => {
-    if (!query) return;
-    if (taskCtx.isRatingNeeded) {
-      taskCtx.setShowRatingPopUp(true);
-      return;
-    } else if (taskCtx.showEditNoteReminder) {
-      taskCtx.setShowPopUp(true);
-      return;
-    }
+  // Actually execute the search
+  const executeSearch = async (searchQuery) => {
     setIsLoading(true);
     setTypingStartTime(null);
     taskCtx.setQueryCount();
@@ -176,19 +170,16 @@ const SearchPage = () => {
     setQueryID(qID);
 
     try {
-      // Use Firebase Cloud Function instead of direct API call
       const braveSearch = httpsCallable(functions, "braveSearch");
-      const result = await braveSearch({ query: query });
+      const result = await braveSearch({ query: searchQuery });
       const data = result.data;
 
       console.log("Brave Search Results:", data);
 
-      // Check if web results exist
       if (!data.web || !data.web.results) {
         throw new Error("No web results found in Brave Search response");
       }
 
-      // Transform Brave Search results to match the expected format
       const localSearchResults = data.web.results.map((result) => ({
         title: result.title,
         url: result.url,
@@ -199,20 +190,42 @@ const SearchPage = () => {
         favicon: result.meta_url?.favicon,
       }));
 
-      // print the first favicon for testing
       console.log("First favicon URL:", localSearchResults[0]?.favicon);
 
-      setSearchResults(localSearchResults); // Store the search results
-      // Update the context to show the pop-up
-      taskCtx.setIsRatingNeeded(true);
+      setSearchResults(localSearchResults);
       taskCtx.setShowEditNoteReminder(true);
-      await storeSearchResults(query, localSearchResults, qID);
+      await storeSearchResults(searchQuery, localSearchResults, qID);
+
+      // Mark response received - survey will show before next search query
+      if (markResponseReceived) {
+        markResponseReceived();
+      }
     } catch (error) {
       console.error("Error fetching search results:", error);
       alert("Search failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const search = async () => {
+    if (!query) return;
+
+    // Check if notes need to be edited first
+    if (taskCtx.showEditNoteReminder) {
+      taskCtx.setShowPopUp(true);
+      return;
+    }
+
+    // Check for pending "afterResponseReceive" survey before executing search
+    if (checkPendingResponseSurvey && checkPendingResponseSurvey()) {
+      // Survey is now showing, store the query to execute after survey completes
+      setPendingQuery(query);
+      return;
+    }
+
+    // No pending survey, execute search immediately
+    await executeSearch(query);
   };
 
   return (
@@ -232,8 +245,8 @@ const SearchPage = () => {
             }}
             onChange={handleTextareaChange}
           ></textarea>
-          <button onClick={search} title="Send prompt">
-            <img className="h-5 w-5" src={search_icon} alt="Send message" />
+          <button onClick={search} title="Search" disabled={isLoading}>
+            <img className="h-5 w-5" src={search_icon} alt="Search" />
           </button>
         </div>
       </div>
@@ -253,20 +266,16 @@ const SearchPage = () => {
                   url: page.displayUrl,
                   customID: page.customID,
                   ts: Timestamp.now(),
+                  rank: index + 1, // Track the ranking position (1-based)
                 })
               }
             />
           ))
         )}
       </div>
-      {taskCtx.showPopUp && !taskCtx.isRatingNeeded && (
+      {taskCtx.showPopUp && (
         <div className="fixed top-0 z-10 left-0 w-screen h-screen flex items-center justify-center">
           <EditNoteReminder />
-        </div>
-      )}
-      {taskCtx.showRatingPopUp && (
-        <div className="fixed top-0 left-0 z-10 w-screen h-screen flex items-center justify-center">
-          <RateSearchResults queryID={queryID} />
         </div>
       )}
     </div>

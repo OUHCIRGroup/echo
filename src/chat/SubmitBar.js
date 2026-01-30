@@ -4,12 +4,13 @@ import { db } from "../firebase-config";
 import TaskContext from "../context/task-context";
 import { useLocation } from "react-router-dom";
 
-const SubmitBar = () => {
+const SubmitBar = ({ triggerBeforeSubmit, onSurveyCompleteRef }) => {
   const taskCtx = useContext(TaskContext);
   const location = useLocation();
 
   // State for minimum interactions (loaded from admin settings)
   const [minimumInteractions, setMinimumInteractions] = useState(4);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   // Load minimum interactions from admin settings
   useEffect(() => {
@@ -30,6 +31,19 @@ const SubmitBar = () => {
     loadSettings();
   }, []);
 
+  // Handle survey completion - proceed with submit
+  const handleSurveyComplete = () => {
+    if (pendingSubmit) {
+      setPendingSubmit(false);
+      taskCtx.setShowEndTaskPopUp(true);
+    }
+  };
+
+  // Expose the handler to parent via ref
+  if (onSurveyCompleteRef) {
+    onSurveyCompleteRef.current = handleSurveyComplete;
+  }
+
   const handleEndTask = async () => {
     const currentPath = location.pathname;
     var alert_message;
@@ -40,14 +54,18 @@ const SubmitBar = () => {
     }
 
     if (taskCtx.queryCount >= minimumInteractions) {
-      if (taskCtx.firstTask === "chat" && !taskCtx.allResponsesRated) {
-        alert(
-          "Not all responses are rated! Please click the star next to the ChatGPT response before submitting the task.",
-        );
-        return;
-      } else {
-        taskCtx.setShowEndTaskPopUp(true);
+      // Check for "beforeSubmit" survey only (not afterResponseReceive - that's for next query)
+      if (triggerBeforeSubmit) {
+        const beforeSubmitSurvey = triggerBeforeSubmit();
+        if (beforeSubmitSurvey) {
+          // Survey is now showing, mark that we want to submit after
+          setPendingSubmit(true);
+          return;
+        }
       }
+
+      // No pending survey, proceed with submit
+      taskCtx.setShowEndTaskPopUp(true);
     } else {
       console.log("taskCtx.queryCount", taskCtx.queryCount);
       alert(alert_message);

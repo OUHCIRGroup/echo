@@ -6,12 +6,13 @@ import NoteContainer from "./NoteContainer";
 import TaskContext from "../context/task-context";
 import { useLocation } from "react-router-dom";
 
-const NoteBar = () => {
+const NoteBar = ({ triggerBeforeSubmit, onSurveyCompleteRef }) => {
   const taskCtx = useContext(TaskContext);
   const location = useLocation();
 
   // State for minimum interactions (loaded from admin settings)
   const [minimumInteractions, setMinimumInteractions] = useState(4);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   // Load minimum interactions from admin settings
   useEffect(() => {
@@ -33,6 +34,32 @@ const NoteBar = () => {
     loadSettings();
   }, []);
 
+  // Handle survey completion - proceed with submit
+  const handleSurveyComplete = () => {
+    if (pendingSubmit) {
+      setPendingSubmit(false);
+      proceedWithSubmit();
+    }
+  };
+
+  // Expose the handler to parent via ref
+  if (onSurveyCompleteRef) {
+    onSurveyCompleteRef.current = handleSurveyComplete;
+  }
+
+  // Actually proceed with showing the end task popup
+  const proceedWithSubmit = () => {
+    if (taskCtx.showEditNoteReminder) {
+      // Notes need to be saved - show reminder with clear message
+      alert(
+        "Please save your notes before submitting. Click the 'Save' button in the notes area.",
+      );
+      taskCtx.setShowSaveButton(true);
+      return;
+    }
+    taskCtx.setShowEndTaskPopUp(true);
+  };
+
   const handleEndTask = async () => {
     const currentPath = location.pathname;
     let alertMessage;
@@ -41,15 +68,20 @@ const NoteBar = () => {
     } else {
       alertMessage = `You can end the task only after ${minimumInteractions} interactions with the search engine utilizing 'Search the web..'`;
     }
+
     if (taskCtx.queryCount >= minimumInteractions) {
-      if (taskCtx.firstTask === "chat" && !taskCtx.allResponsesRated) {
-        alert(
-          "Not all responses are rated! Please click the star next to the ChatGPT response before submitting the task.",
-        );
-        return;
-      } else {
-        taskCtx.setShowEndTaskPopUp(true);
+      // Check for "beforeSubmit" survey only (not afterResponseReceive - that's for next query)
+      if (triggerBeforeSubmit) {
+        const beforeSubmitSurvey = triggerBeforeSubmit();
+        if (beforeSubmitSurvey) {
+          // Survey is now showing, mark that we want to submit after
+          setPendingSubmit(true);
+          return;
+        }
       }
+
+      // No pending survey, proceed with submit flow
+      proceedWithSubmit();
     } else {
       console.log("taskCtx.queryCount", taskCtx.queryCount);
       alert(alertMessage);

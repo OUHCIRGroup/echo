@@ -26,6 +26,8 @@ import ManageSettings from "./admin/ManageSettings";
 import ViewResponses from "./admin/ViewResponses";
 import ManageStudyFlow from "./admin/ManageStudyFlow";
 import ManageStudySettings from "./admin/ManageStudySettings";
+import ManageInSituSurveys from "./admin/ManageInSituSurveys";
+import ManageConsentForm from "./admin/ManageConsentForm";
 
 // Admin protected route component
 const AdminProtectedRoute = ({ component: Component }) => {
@@ -180,6 +182,15 @@ function App() {
         <Route
           path="/admin/study-settings"
           element={<AdminProtectedRoute component={ManageStudySettings} />}
+        />
+        {/* NEW: In-Situ Surveys Route */}
+        <Route
+          path="/admin/insitu-surveys"
+          element={<AdminProtectedRoute component={ManageInSituSurveys} />}
+        />
+        <Route
+          path="/admin/consent-form"
+          element={<AdminProtectedRoute component={ManageConsentForm} />}
         />
       </Routes>
     </div>

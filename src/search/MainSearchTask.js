@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useRef } from "react";
 import Navbar from "../chat/navbar";
 import NoteBar from "../chat/NoteBar";
 import SubmitBar from "../chat/SubmitBar";
@@ -9,6 +9,9 @@ import AuthContext from "../context/auth-context";
 import InstructionsPopUp from "../questionnaire/InstructionsPopUp";
 import { Timestamp, setDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase-config";
+// Import in-situ surveys hook
+import useInSituSurveys from "../hooks/useInSituSurveys";
+import InSituSurveyPopup from "../components/InSituSurveyPopup";
 
 const MainSearchTask = () => {
   const [showInstructions, setShowInstructions] = useState(true);
@@ -17,6 +20,23 @@ const MainSearchTask = () => {
 
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
+
+  // Ref for survey complete callback from sidebar
+  const sidebarSurveyCompleteRef = useRef(null);
+  // Ref for survey complete callback from search page
+  const searchPageSurveyCompleteRef = useRef(null);
+
+  // Single instance of in-situ surveys hook - shared across search page and sidebar
+  const {
+    currentSurvey,
+    submitSurveyResponse,
+    dismissSurvey,
+    triggerAfterSearchQuery,
+    markResponseReceived,
+    checkPendingResponseSurvey,
+    triggerBeforeSubmit,
+    hasPendingSurvey,
+  } = useInSituSurveys({ taskType: "search" });
 
   // Load notes setting from admin
   useEffect(() => {
@@ -67,6 +87,34 @@ const MainSearchTask = () => {
     }
   }, [authCtx.user]);
 
+  // Handle survey submission - notify both search page and sidebar
+  const handleSurveySubmit = (responseData) => {
+    submitSurveyResponse(responseData);
+    // Trigger callbacks for both search page and sidebar
+    setTimeout(() => {
+      if (searchPageSurveyCompleteRef.current) {
+        searchPageSurveyCompleteRef.current();
+      }
+      if (sidebarSurveyCompleteRef.current) {
+        sidebarSurveyCompleteRef.current();
+      }
+    }, 100);
+  };
+
+  // Handle survey dismissal - notify both search page and sidebar
+  const handleSurveyDismiss = () => {
+    dismissSurvey();
+    // Trigger callbacks for both search page and sidebar
+    setTimeout(() => {
+      if (searchPageSurveyCompleteRef.current) {
+        searchPageSurveyCompleteRef.current();
+      }
+      if (sidebarSurveyCompleteRef.current) {
+        sidebarSurveyCompleteRef.current();
+      }
+    }, 100);
+  };
+
   // Show loading while checking settings
   if (isLoadingSettings) {
     return (
@@ -79,9 +127,25 @@ const MainSearchTask = () => {
   return (
     <div className="flex flex-row bg-[#e3e3e3] w-screen">
       <Navbar setShowInstructions={setShowInstructions} />
-      <SearchPage />
+      <SearchPage
+        triggerAfterSearchQuery={triggerAfterSearchQuery}
+        markResponseReceived={markResponseReceived}
+        checkPendingResponseSurvey={checkPendingResponseSurvey}
+        onSurveyCompleteRef={searchPageSurveyCompleteRef}
+      />
       {/* Conditionally render NoteBar or SubmitBar based on admin setting */}
-      {notesEnabled ? <NoteBar /> : <SubmitBar />}
+      {notesEnabled ? (
+        <NoteBar
+          triggerBeforeSubmit={triggerBeforeSubmit}
+          onSurveyCompleteRef={sidebarSurveyCompleteRef}
+        />
+      ) : (
+        <SubmitBar
+          triggerBeforeSubmit={triggerBeforeSubmit}
+          onSurveyCompleteRef={sidebarSurveyCompleteRef}
+        />
+      )}
+
       {taskCtx.showEndTaskPopUp && (
         <div className="fixed top-0 left-0 w-screen h-screen flex items-center justify-center z-50">
           <EndTaskPopUp collectionName="searchTasks" />
@@ -94,6 +158,16 @@ const MainSearchTask = () => {
             setShowInstructions={setShowInstructions}
           />
         </div>
+      )}
+
+      {/* Single In-situ survey popup for both search page and sidebar */}
+      {currentSurvey && (
+        <InSituSurveyPopup
+          survey={currentSurvey}
+          onSubmit={handleSurveySubmit}
+          onDismiss={handleSurveyDismiss}
+          allowSkip={false}
+        />
       )}
     </div>
   );

@@ -57,7 +57,7 @@ const Navbar = (props) => {
 
   return (
     <div
-      className="bg-[#e3e3e3] w-[34%] h-screen sticky flex top-0 flex-col text-[18px] 
+      className="bg-[#e3e3e3] w-[34%] h-screen sticky flex top-0 flex-col text-[18px]
     pb-10 pt-10 justify-between"
     >
       <div>

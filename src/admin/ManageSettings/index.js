@@ -218,7 +218,7 @@ const ManageSettings = () => {
             API Settings
           </h1>
           <p className="text-gray-600">
-            Manage your personal API keys for OpenAI and Brave Search services.
+            Manage your personal API keys for LLM and Search services.
           </p>
         </div>
 
