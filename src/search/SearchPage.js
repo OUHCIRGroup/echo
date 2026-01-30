@@ -229,9 +229,9 @@ const SearchPage = ({
   };
 
   return (
-    <div className="p-4 w-full bg-[#FFFFFF] overflow-y-auto ">
+    <div className="p-4 w-full bg-white overflow-y-auto ">
       <div className="flex flex-row space-x-6">
-        <div className="rounded-3xl bg-[#e3e3e3] px-8 py-3 min-h-11 flex flex-grow items-center">
+        <div className="rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-100 px-8 py-3 min-h-11 flex flex-grow items-center">
           <textarea
             className="bg-transparent focus:outline-none h-7 text-black resize-none w-full"
             ref={textRef}

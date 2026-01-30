@@ -453,15 +453,15 @@ const ExperienceSurveyMain = () => {
           <h1 className="text-2xl font-bold text-gray-800 text-center mb-2">
             Session Experience Survey
           </h1>
-          {currentTask && (
+          {/* {currentTask && (
             <p className="text-center text-gray-600">
               Please share your experience using{" "}
               <span className="font-semibold text-blue-600">{currentTask}</span>
             </p>
-          )}
+          )} */}
 
           {/* Progress Bar */}
-          <div className="mt-4">
+          {/* <div className="mt-4">
             <div className="flex justify-between text-sm text-gray-500 mb-1">
               <span>Progress</span>
               <span>
@@ -474,7 +474,7 @@ const ExperienceSurveyMain = () => {
                 style={{ width: `${progressPercentage}%` }}
               ></div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Survey Form */}

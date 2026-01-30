@@ -26,11 +26,17 @@ const Navbar = (props) => {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
+  // const formatTimeLeft = () => {
+  //   const minutes = Math.floor(timeLeft / 60);
+  //   const seconds = timeLeft % 60;
+
+  //   return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  // };
   const formatTimeLeft = () => {
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
 
-    return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   const minutes = Math.floor(timeLeft / 60);
@@ -57,20 +63,20 @@ const Navbar = (props) => {
 
   return (
     <div
-      className="bg-[#e3e3e3] w-[34%] h-screen sticky flex top-0 flex-col text-[18px]
+      className="bg-gradient-to-br from-blue-50 to-indigo-100 w-[44%] h-screen sticky flex top-0 flex-col text-[18px]
     pb-10 pt-10 justify-between"
     >
       <div>
-        <div className="pl-8 text-black font-bold underline mb-2">
+        <div className="pl-8 text-black font-bold uppercase  mb-4">
           <label className="">Current task</label>
         </div>
-        <div className="pl-8 text-[14px] text-black mb-2">
+        <div className="pl-8 text-[14px] font-semibold text-black mb-2">
           <label className="">{currentTask}</label>
         </div>
         <div className="bg-[#FFFFFF] h-fit rounded-xl mx-5 px-4 py-4 w-fit text-md lg:text-[14px] text-black select-none">
           <label className="">{task}</label>
         </div>
-        <div className="pl-8 text-black md:text-[16px] mt-4 mb-2">
+        <div className="pl-8 text-black font-semibold md:text-[16px] mt-4 mb-2">
           <label className="">Full task description</label>
         </div>
         <div className="bg-[#FFFFFF] h-fit rounded-xl mx-5 px-4 py-4 w-fit text-md lg:text-[14px] text-black select-none">

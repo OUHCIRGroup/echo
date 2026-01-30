@@ -351,16 +351,23 @@
 //                           key={cIdx}
 //                           className="bg-white p-2 rounded border text-sm"
 //                         >
-//                           <a
-//                             href={clicked.url}
-//                             target="_blank"
-//                             rel="noopener noreferrer"
-//                             className="text-blue-600 hover:underline break-all"
-//                           >
-//                             {clicked.url}
-//                           </a>
+//                           <div className="flex items-center gap-2 mb-1">
+//                             {clicked.rank && (
+//                               <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded font-medium">
+//                                 Rank #{clicked.rank}
+//                               </span>
+//                             )}
+//                             <a
+//                               href={clicked.url}
+//                               target="_blank"
+//                               rel="noopener noreferrer"
+//                               className="text-blue-600 hover:underline break-all"
+//                             >
+//                               {clicked.url}
+//                             </a>
+//                           </div>
 //                           {clicked.ts && (
-//                             <div className="text-xs text-gray-400 mt-1">
+//                             <div className="text-xs text-gray-400">
 //                               Clicked: {formatTimestamp(clicked.ts)}
 //                             </div>
 //                           )}
@@ -586,12 +593,19 @@
 //         const searchDoc = await getDoc(doc(db, "searchTask", participant.uid));
 //         if (searchDoc.exists() && searchDoc.data().queryInteractions) {
 //           searchDoc.data().queryInteractions.forEach((interaction, idx) => {
+//             // Get clicked ranks as comma-separated string
+//             const clickedRanks =
+//               interaction.clickedResults
+//                 ?.map((c) => c.rank)
+//                 .filter((r) => r)
+//                 .join(", ") || "N/A";
 //             allData.searchInteractions.push({
 //               participantId: participant.uid,
 //               queryIndex: idx,
 //               query: interaction.query || "N/A",
 //               resultsCount: interaction.searchResults?.length || 0,
 //               clickedCount: interaction.clickedResults?.length || 0,
+//               clickedRanks: clickedRanks,
 //               timestamp: interaction.ts?.toDate?.()?.toISOString() || "N/A",
 //             });
 //           });
@@ -989,15 +1003,38 @@ const ViewResponses = () => {
     const fetchParticipants = async () => {
       try {
         setIsLoading(true);
+
+        // First, get the list of admin emails to exclude
+        const adminEmails = new Set();
+        try {
+          const adminListRef = collection(db, "admin", "users", "list");
+          const adminSnapshot = await getDocs(adminListRef);
+          adminSnapshot.forEach((docSnap) => {
+            const adminData = docSnap.data();
+            if (adminData.email) {
+              adminEmails.add(adminData.email.toLowerCase());
+            }
+          });
+        } catch (error) {
+          console.log("Could not fetch admin list:", error);
+        }
+
         const usersRef = collection(db, "users");
         const snapshot = await getDocs(usersRef);
         const participantsList = [];
 
         snapshot.forEach((docSnapshot) => {
           const data = docSnapshot.data();
+          const email = data.email || "";
+
+          // Skip admin users
+          if (adminEmails.has(email.toLowerCase())) {
+            return;
+          }
+
           participantsList.push({
             uid: docSnapshot.id,
-            email: data.email || "No email",
+            email: email || "No email",
             displayName: data.displayName || "",
             mturkId: data.mturkId || "N/A",
             createdAt:
@@ -1040,6 +1077,7 @@ const ViewResponses = () => {
         chatTasks: null,
         searchTasks: null,
         inSituSurveyResponses: [],
+        notes: [],
       };
 
       const userDoc = await getDoc(doc(db, "users", participant.uid));
@@ -1090,6 +1128,23 @@ const ViewResponses = () => {
       surveySnapshot.forEach((docSnap) => {
         data.inSituSurveyResponses.push({ id: docSnap.id, ...docSnap.data() });
       });
+
+      // Fetch notes for both chat and search tasks
+      const taskTypes = ["chat", "search"];
+      for (const taskType of taskTypes) {
+        const noteDocId = `${participant.uid}${taskType}`;
+        const noteDoc = await getDoc(doc(db, "notes", noteDocId));
+        if (noteDoc.exists()) {
+          const noteData = noteDoc.data();
+          if (noteData.notesArray && noteData.notesArray.length > 0) {
+            data.notes.push({
+              taskType: taskType,
+              taskCategory: noteData.taskCategory || taskType,
+              notesArray: noteData.notesArray,
+            });
+          }
+        }
+      }
 
       data.inSituSurveyResponses.sort((a, b) => {
         const aTime = a.createdAt?.toDate?.() || new Date(0);
@@ -1150,45 +1205,35 @@ const ViewResponses = () => {
               </div>
             </div>
             {response.ratings && Object.keys(response.ratings).length > 0 ? (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-700 text-sm">
-                  Intention Ratings:
-                </h4>
-                <div className="grid gap-2">
-                  {Object.entries(response.ratings).map(
-                    ([intentionId, rating], rIdx) => (
-                      <div key={rIdx} className="bg-white p-3 rounded border">
-                        <div className="text-sm text-gray-600 mb-1">
-                          Intention:{" "}
-                          <span className="font-medium">{intentionId}</span>
-                        </div>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {Object.entries(response.ratings).map(
+                  ([intention, rating], rIdx) => (
+                    <div key={rIdx} className="bg-white p-3 rounded border">
+                      <div className="text-sm font-medium text-gray-700 mb-1">
+                        {intention}
+                      </div>
+                      <div className="text-xs text-gray-600">
                         {rating.expectationRating && (
-                          <div className="text-sm">
-                            <span className="text-gray-500">Expectation:</span>{" "}
-                            <span className="font-medium text-gray-800">
-                              {rating.expectationRating}
-                            </span>
+                          <div>
+                            <span className="font-medium">Expectation:</span>{" "}
+                            {rating.expectationRating}
                           </div>
                         )}
                         {rating.usageFrequencyRating && (
-                          <div className="text-sm">
-                            <span className="text-gray-500">
+                          <div>
+                            <span className="font-medium">
                               Usage Frequency:
                             </span>{" "}
-                            <span className="font-medium text-gray-800">
-                              {rating.usageFrequencyRating}
-                            </span>
+                            {rating.usageFrequencyRating}
                           </div>
                         )}
                       </div>
-                    ),
-                  )}
-                </div>
+                    </div>
+                  ),
+                )}
               </div>
             ) : (
-              <div className="text-gray-500 text-sm italic">
-                No ratings recorded
-              </div>
+              <div className="text-gray-500 italic">No ratings recorded.</div>
             )}
           </div>
         ))}
@@ -1427,6 +1472,86 @@ const ViewResponses = () => {
     );
   };
 
+  const renderNotes = () => {
+    if (!participantData?.notes || participantData.notes.length === 0) {
+      return (
+        <div className="text-gray-500 italic">
+          No notes available for this participant.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {participantData.notes.map((noteGroup, groupIdx) => (
+          <div key={groupIdx} className="bg-gray-50 rounded-lg p-4 border">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  noteGroup.taskType === "chat"
+                    ? "bg-purple-100 text-purple-800"
+                    : "bg-green-100 text-green-800"
+                }`}
+              >
+                {noteGroup.taskType === "chat" ? "💬 ChatGPT" : "🔍 Search"}{" "}
+                Notes
+              </span>
+              <span className="text-sm text-gray-500">
+                {noteGroup.notesArray.length} note
+                {noteGroup.notesArray.length !== 1 ? "s" : ""} saved
+              </span>
+            </div>
+
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
+              {noteGroup.notesArray.map((note, noteIdx) => (
+                <div
+                  key={noteIdx}
+                  className="bg-white rounded-lg border p-4 shadow-sm"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
+                        {noteIdx + 1}
+                      </span>
+                      <span className="text-sm font-medium text-gray-700">
+                        Version {noteIdx + 1}
+                      </span>
+                      {note.resubmitted && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs">
+                          Resubmitted
+                        </span>
+                      )}
+                      {note.autoSavedOnSubmit && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">
+                          Auto-saved
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {note.ts && formatTimestamp(note.ts)}
+                    </div>
+                  </div>
+
+                  {note.noteInHTML ? (
+                    <div
+                      className="prose prose-sm max-w-none bg-gray-50 p-4 rounded-lg border"
+                      dangerouslySetInnerHTML={{ __html: note.noteInHTML }}
+                    />
+                  ) : (
+                    <div className="text-gray-500 italic text-sm">
+                      No content in this note.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Export helper functions
   const flattenObject = (obj, prefix = "") => {
     const result = {};
     for (const key in obj) {
@@ -1477,6 +1602,7 @@ const ViewResponses = () => {
         chatInteractions: [],
         searchInteractions: [],
         inSituSurveyResponses: [],
+        notes: [],
       };
 
       for (const participant of participants) {
@@ -1554,7 +1680,6 @@ const ViewResponses = () => {
         const searchDoc = await getDoc(doc(db, "searchTask", participant.uid));
         if (searchDoc.exists() && searchDoc.data().queryInteractions) {
           searchDoc.data().queryInteractions.forEach((interaction, idx) => {
-            // Get clicked ranks as comma-separated string
             const clickedRanks =
               interaction.clickedResults
                 ?.map((c) => c.rank)
@@ -1592,6 +1717,29 @@ const ViewResponses = () => {
             timestamp: surveyData.createdAt?.toDate?.()?.toISOString() || "N/A",
           });
         });
+
+        // Export notes
+        const taskTypes = ["chat", "search"];
+        for (const taskType of taskTypes) {
+          const noteDocId = `${participant.uid}${taskType}`;
+          const noteDoc = await getDoc(doc(db, "notes", noteDocId));
+          if (noteDoc.exists()) {
+            const noteData = noteDoc.data();
+            if (noteData.notesArray && noteData.notesArray.length > 0) {
+              noteData.notesArray.forEach((note, idx) => {
+                allData.notes.push({
+                  participantId: participant.uid,
+                  taskType: taskType,
+                  noteIndex: idx,
+                  noteContent: note.noteInHTML || "",
+                  resubmitted: note.resubmitted || false,
+                  autoSaved: note.autoSavedOnSubmit || false,
+                  timestamp: note.ts?.toDate?.()?.toISOString() || "N/A",
+                });
+              });
+            }
+          }
+        }
       }
 
       const zip = new JSZip();
@@ -1628,6 +1776,8 @@ const ViewResponses = () => {
           "insitu_survey_responses.csv",
           generateCSVContent(allData.inSituSurveyResponses),
         );
+      if (allData.notes.length > 0)
+        zip.file("notes.csv", generateCSVContent(allData.notes));
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
@@ -1643,10 +1793,23 @@ const ViewResponses = () => {
     }
   };
 
+  const tabs = [
+    { id: "background", label: "Background" },
+    { id: "questionnaire", label: "Questionnaire" },
+    { id: "experience", label: "Experience" },
+    { id: "chat", label: "Chat" },
+    { id: "search", label: "Search" },
+    { id: "notes", label: "Notes" },
+    { id: "surveys", label: "In-Situ Surveys" },
+  ];
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-lg">Loading participants...</div>
+        <div className="text-center">
+          <div className="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="text-lg text-gray-600">Loading participants...</div>
+        </div>
       </div>
     );
   }
@@ -1688,7 +1851,7 @@ const ViewResponses = () => {
         <div className="flex gap-6">
           <div className="w-1/3">
             <div className="bg-white rounded-lg shadow-sm border p-4">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              <h2 className="font-semibold text-gray-800 mb-4">
                 Participants ({participants.length})
               </h2>
               {participants.length === 0 ? (
@@ -1751,42 +1914,23 @@ const ViewResponses = () => {
                   Select a participant to view their responses
                 </div>
               ) : isLoadingDetails ? (
-                <div className="text-gray-500 text-center py-16">
-                  Loading participant data...
+                <div className="text-center py-16">
+                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <div className="text-gray-600">Loading details...</div>
                 </div>
               ) : (
                 <>
                   <div className="mb-6 pb-4 border-b">
                     <h2 className="text-xl font-semibold text-gray-800">
-                      {selectedParticipant.email || "No email"}
+                      {selectedParticipant.email}
                     </h2>
-                    <div className="text-sm text-gray-500 mt-1 space-y-1">
-                      <div>
-                        <span className="font-medium">User ID:</span>{" "}
-                        {selectedParticipant.uid}
-                      </div>
-                      <div>
-                        <span className="font-medium">MTurk ID:</span>{" "}
-                        {selectedParticipant.mturkId || "N/A"}
-                      </div>
-                      <div>
-                        <span className="font-medium">Task:</span>{" "}
-                        {selectedParticipant.tasks?.firstTask || "N/A"} |{" "}
-                        <span className="font-medium ml-2">Topic:</span>{" "}
-                        {selectedParticipant.tasks?.firstTaskTopic || "N/A"}
-                      </div>
-                    </div>
+                    <p className="text-sm text-gray-500">
+                      ID: {selectedParticipant.uid}
+                    </p>
                   </div>
 
-                  <div className="flex gap-2 mb-4 flex-wrap">
-                    {[
-                      { id: "background", label: "Background" },
-                      { id: "questionnaire", label: "Questionnaires" },
-                      { id: "experience", label: "Experience Survey" },
-                      { id: "chat", label: "Chat Interactions" },
-                      { id: "search", label: "Search Interactions" },
-                      { id: "surveys", label: "In-Situ Surveys" },
-                    ].map((tab) => (
+                  <div className="flex gap-2 mb-6 flex-wrap">
+                    {tabs.map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
@@ -1911,6 +2055,14 @@ const ViewResponses = () => {
                           Search Interactions
                         </h3>
                         {renderSearchInteractions()}
+                      </div>
+                    )}
+                    {activeTab === "notes" && (
+                      <div>
+                        <h3 className="font-medium text-gray-800 mb-3">
+                          Participant Notes
+                        </h3>
+                        {renderNotes()}
                       </div>
                     )}
                     {activeTab === "surveys" && (

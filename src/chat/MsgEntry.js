@@ -258,7 +258,7 @@ const MsgEntry = (props) => {
 
   return (
     <div className="flex flex-row space-x-6 ">
-      <div className="rounded-2xl bg-[#e3e3e3] px-8 py-3 min-h-11 flex flex-grow ml-2">
+      <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 px-8 py-3 min-h-11 flex flex-grow ml-16">
         <textarea
           className="bg-transparent focus:outline-none h-7 text-black resize-none w-full"
           ref={textRef}

@@ -90,10 +90,10 @@ const NoteBar = ({ triggerBeforeSubmit, onSurveyCompleteRef }) => {
   };
 
   return (
-    <div className="bg-[#e3e3e3] w-[50%] h-screen sticky flex top-0 pl-1 flex-col text-[18px] pb-10 pt-10 justify-between items-center overflow-y-auto">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 w-[50%] h-screen sticky flex top-0 pl-1 flex-col text-[18px] pb-10 pt-10 justify-between items-center overflow-y-auto">
       <div className="flex flex-col space-y-10">
-        <div className="bg-[#FFFFFF] h-fit rounded-md mx-5 px-4 py-2 text-[16px] text-black">
-          <label className="">
+        <div className="bg-[#FFFFFF] h-fit rounded-md mx-5 px-4 py-2 text-[14px] text-black">
+          <label className="italic">
             Please add your answer to the task below. You can always click and
             edit it before final submission
           </label>
@@ -109,7 +109,7 @@ const NoteBar = ({ triggerBeforeSubmit, onSurveyCompleteRef }) => {
         >
           Submit
         </button>
-        <label className="text-[12px] italic mt-2">
+        <label className="text-[12px] pl-6 italic mt-2">
           Please submit your response ONLY when you are ready to complete/exit
           the current task. You can edit and save your response at any time
           before the completion.
