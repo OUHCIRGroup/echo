@@ -196,7 +196,7 @@ const AdminDashboard = () => {
           path: "/admin/consent-form",
         },
         {
-          title: "Manage Topology",
+          title: "Manage Typology",
           description: "Configure intention types and hierarchy",
           path: "/admin/topology",
         },

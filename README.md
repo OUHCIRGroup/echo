@@ -23,13 +23,13 @@ ECHO is an open research platform designed to support mixed-method studies of hu
 
 Before starting, make sure you have:
 
-| Requirement               | How to Get It                                                       |
-| ------------------------- | ------------------------------------------------------------------- |
-| **Node.js** (version 14+) | Download from [nodejs.org](https://nodejs.org/)                     |
-| **npm**                   | Included with Node.js                                               |
-| **Firebase account**      | Sign up free at [firebase.google.com](https://firebase.google.com/) |
-| **OpenAI API key**        | Get from [platform.openai.com](https://platform.openai.com/)        |
-| **Brave Search API key**  | Get from [brave.com/search/api](https://brave.com/search/api/)      |
+| Requirement               | How to Get It                                                       | Video Tutorials                             |
+| ------------------------- | ------------------------------------------------------------------- | ------------------------------------------- |
+| **Node.js** (version 14+) | Download from [nodejs.org](https://nodejs.org/)                     | https://www.youtube.com/watch?v=m4D7G3k_TKA |
+| **npm**                   | Included with Node.js                                               |                                             |
+| **Firebase account**      | Sign up free at [firebase.google.com](https://firebase.google.com/) | https://www.youtube.com/watch?v=B4sRuK3XVTc |
+| **OpenAI API key**        | Get from [platform.openai.com](https://platform.openai.com/)        | https://www.youtube.com/watch?v=SzPE_AE0eEo |
+| **Brave Search API key**  | Get from [brave.com/search/api](https://brave.com/search/api/)      | https://www.youtube.com/shorts/GJpP6_9wmBE  |
 
 Verify Node.js is installed:
 
@@ -226,6 +226,21 @@ Access at `/admin/login`
 
 ## Exporting Data
 
+ECHO provides comprehensive data export functionality:
+
+Exported Data File contains:
+
+1. participants.csv: User registration and completion data
+2. background_responses.csv: Demographic survey answers
+3. experience_surveys.csv: Post task experience responses
+4. questionnaire_responses.csv: Pre/post task intention ratings
+5. chat_interactions.csv: Full chat history with timestamps
+6. search_interactions.csv: Search queries, results, clicks
+7. insitu_survey_responses.csv: In situ popup survey answers
+8. notes.csv: Participant notes with timestamps
+
+Steps to Export Data:
+
 1. Log in to admin panel
 2. Go to **View Participant Responses**
 3. Click **Export as CSV**
@@ -234,6 +249,6 @@ Access at `/admin/login`
 
 ## Support
 
-If you encounter any difficulties or issues, feel free to contact us at [jiqunliu@ou.edu].
+If you encounter any difficulties or issues, feel free to contact us at jiqunliu@ou.edu.
 
 ---
