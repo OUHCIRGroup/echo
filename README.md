@@ -247,6 +247,238 @@ Steps to Export Data:
 
 ---
 
+## Sample Demo Data
+
+Demography Surevy Questions Data:
+
+```bash
+[
+  {
+    "category": "What is your age group?",
+    "options": [
+      "Under 18",
+      "18-24",
+      "25-34",
+      "35-44",
+      "45-54",
+      "55-64",
+      "65 or older"
+    ],
+    "required": true
+  },
+  {
+    "category": "What is your gender?",
+    "options": [
+      "Male",
+      "Female",
+      "Non-binary/Third gender",
+      "Prefer not to say",
+      "Prefer to self-describe"
+    ],
+    "required": true
+  },
+  {
+    "category": "What is the highest level of education you have completed or currently pursuing?",
+    "options": [
+      "Less than high school",
+      "High school graduate or equivalent",
+      "Some college, no degree",
+      "Trade/technical/vocational training",
+      "Associate degree",
+      "Bachelor’s degree",
+      "Master’s degree",
+      "Doctorate"
+    ],
+    "required": true
+  },
+  {
+    "category": "What is your current employment status?",
+    "options": [
+      "Employed full-time",
+      "Employed part-time",
+      "Self-employed",
+      "Unemployed",
+      "Student",
+      "Retired",
+      "Prefer not to say"
+    ],
+    "required": true
+  },
+  {
+    "category": "How frequently do you use ChatGPT?",
+    "options": [
+      "Never/This is going to be my first time",
+      "Occasionally (less than once a week)",
+      "Regularly (once a week or more)",
+      "Frequently (daily or almost daily)"
+    ],
+    "required": true
+  },
+  {
+    "category": "How frequently do you use Search Engines (e.g. Google, Bing)?",
+    "options": [
+      "Never/This is going to be my first time",
+      "Occasionally (less than once a week)",
+      "Regularly (once a week or more)",
+      "Frequently (daily or almost daily)"
+    ],
+    "required": true
+  },
+  {
+    "category": "How frequently do you use virtual assistants (e.g. Siri, Microsoft Crotana, Google Assistant, Alexa)?",
+    "options": [
+      "Never/This is going to be my first time",
+      "Occasionally (less than once a week)",
+      "Regularly (once a week or more)",
+      "Frequently (daily or almost daily)"
+    ],
+    "required": true
+  },
+  {
+    "category": "What is your primary purpose for using ChatGPT?",
+    "options": [
+      "Education",
+      "Work-related tasks",
+      "Personal interest/hobby",
+      "Entertainment",
+      "Other"
+    ],
+    "allowMultipleSelections": true,
+    "selectUpto": 2,
+    "required": true
+  },
+  {
+    "category": "What is your primary purpose for using Search Engines (e.g. Google, Bing)?",
+    "options": [
+      "Education",
+      "Work-related tasks",
+      "Personal interest/hobby",
+      "Entertainment",
+      "Other"
+    ],
+    "allowMultipleSelections": true,
+    "selectUpto": 2,
+    "required": true
+  },
+  {
+    "category": "What is your primary purpose for using virtual assistant?",
+    "options": [
+      "Education",
+      "Work-related tasks",
+      "Personal interest/hobby",
+      "Entertainment",
+      "Other"
+    ],
+    "allowMultipleSelections": true,
+    "selectUpto": 2,
+    "required": true
+  },
+  {
+    "category": "How did you first hear about ChatGPT?",
+    "options": [
+      "Social media",
+      "News article/blog",
+      "Friend/Colleague",
+      "Academic course/workshop",
+      "Other"
+    ],
+    "allowMultipleSelections": true,
+    "required": true
+  }
+]
+
+```
+
+Typology Survey Question Data:
+
+```bash
+[
+  {
+    "intention_type": "Identify new information",
+    "intention_list": [
+      {
+        "short_text": "Identify an appropriate starting point to search or chat",
+        "long_text": "for instance, find good query keywords, appropriate chat prompts, questions or problem descriptions"
+      },
+      {
+        "short_text": "Identify something more to search or learn",
+        "long_text": "explore a target topic or domain more broadly or deeper, and obtain more relevant information"
+      },
+      {
+        "short_text": "Identify something new or unexpected",
+        "long_text": "explore pieces of information, interest, or advice that are completely new or unexpected; obtain inspiration or ideas for creative projects"
+      },
+      {
+        "short_text": "Obtain explanations",
+        "long_text": "search or ask for explanations or clarifications about phenomena, concepts, problems, or potential solutions"
+      }
+    ]
+  },
+  {
+    "intention_type": "Find information",
+    "intention_list": [
+      {
+        "short_text": "Find a known item or site",
+        "long_text": "searching or asking for an item (e.g., a bag, book, name of a restaurant or celebrity), website or information source that you were familiar with in advance."
+      },
+      {
+        "short_text": "Find items sharing a named characteristic",
+        "long_text": "finding items or information with something in common."
+      },
+      {
+        "short_text": "Find items without predefined criteria",
+        "long_text": "finding items that are potentially useful for a task or problem, but which have not been specified in advance."
+      }
+    ]
+  },
+]
+```
+
+Task Questions Data:
+
+```bash
+[
+  {
+    "id": 1,
+    "title": "Assess the impacts of using AI in hiring processes",
+    "description": "Assess the impacts of using AI in hiring processes, considering various societal, cultural and ethical aspects. Should we use AI in hiring processes and why?"
+  },
+  {
+    "id": 2,
+    "title": "Investigate the balance between privacy and public safety in the use of surveillance cameras in urban areas",
+    "description": "Investigate the balance between privacy and public safety in the use of surveillance cameras in urban areas, considering legal, ethical, and technological perspectives. Should we use surveillance cameras in urban areas and why?"
+  },
+  {
+    "id": 3,
+    "title": "Compare the Keto, Vegan, and Mediterranean diets",
+    "description": "Compare the Keto, Vegan, and Mediterranean diets focusing on their nutritional profiles, suitability for various age groups, and effects on diabetes and heart health. Please rank the three diets and explain your decision."
+  },
+]
+```
+
+Session Experience Data:
+
+```bash
+[
+  {
+    "key": "overallExperience",
+    "question": "How would you rate your overall experience with the current task interaction?",
+    "options": [
+      "Very Unsatisfactory",
+      "Unsatisfactory",
+      "Neutral",
+      "Satisfactory",
+      "Very Satisfactory"
+    ]
+  },
+    {
+    "key": "additionalComments",
+    "question": "Please provide any additional comments or feedback you have about your experience. If possible, please comment on both unexpected positive experiences and encountered obstacles.",
+    "responseType": "open-ended"
+  }
+]
+```
+
 ## Support
 
 If you encounter any difficulties or issues, feel free to contact us at jiqunliu@ou.edu.

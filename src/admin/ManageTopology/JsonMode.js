@@ -8,7 +8,7 @@ const JsonMode = ({ onSave, isLoading }) => {
   const loadExistingTopology = async () => {
     try {
       // Import the existing topology.json file
-      const response = await import("../../topology.json");
+      const response = await import("../../typology.json");
       const existingData = response.default;
       setJsonInput(JSON.stringify(existingData, null, 2));
       setParseError("");
@@ -28,7 +28,7 @@ const JsonMode = ({ onSave, isLoading }) => {
 
     try {
       const parsed = parseInput(jsonInput);
-      
+
       if (parsed.length === 0) {
         setParseError("No valid topology items found in the input");
         return;
@@ -73,7 +73,7 @@ const JsonMode = ({ onSave, isLoading }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <h3 className="text-lg font-semibold text-gray-800 mb-4">JSON Mode</h3>
-      
+
       <div className="mb-4">
         <div className="flex justify-between items-start mb-3">
           <div>
@@ -81,10 +81,18 @@ const JsonMode = ({ onSave, isLoading }) => {
               Paste or type JSON array of topology data. Each item should have:
             </p>
             <ul className="text-xs text-gray-500 ml-4 list-disc space-y-1">
-              <li><code>intention_type</code>: Category name (string)</li>
-              <li><code>intention_list</code>: Array of intentions with:</li>
-              <li className="ml-4"><code>short_text</code>: Brief description (string)</li>
-              <li className="ml-4"><code>long_text</code>: Detailed description (string)</li>
+              <li>
+                <code>intention_type</code>: Category name (string)
+              </li>
+              <li>
+                <code>intention_list</code>: Array of intentions with:
+              </li>
+              <li className="ml-4">
+                <code>short_text</code>: Brief description (string)
+              </li>
+              <li className="ml-4">
+                <code>long_text</code>: Detailed description (string)
+              </li>
             </ul>
           </div>
           <button
@@ -119,7 +127,9 @@ const JsonMode = ({ onSave, isLoading }) => {
       </form>
 
       <div className="mt-6">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Example JSON:</h4>
+        <h4 className="text-sm font-medium text-gray-700 mb-2">
+          Example JSON:
+        </h4>
         <pre className="bg-gray-50 p-3 rounded-md overflow-auto text-xs text-gray-700">
           {exampleJson}
         </pre>
