@@ -398,7 +398,7 @@ const ManageStudyFlow = () => {
           >
             Study Flow Order
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab("instructions")}
             className={`px-6 py-3 rounded-lg font-medium transition-colors ${
               activeTab === "instructions"
@@ -407,7 +407,7 @@ const ManageStudyFlow = () => {
             }`}
           >
             Task Instructions
-          </button>
+          </button> */}
         </div>
 
         {/* Study Flow Tab */}

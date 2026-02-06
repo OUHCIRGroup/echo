@@ -4,23 +4,31 @@ import FormMode from "./FormMode";
 import JsonMode from "./JsonMode";
 import ViewMode from "./ViewMode";
 import { saveTopologyData } from "./shared/topologyUtils";
+import { useNavigate } from "react-router-dom";
 
 const ManageTopology = () => {
   const [mode, setMode] = useState("form");
   const [status, setStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const authCtx = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const handleSave = async (items) => {
     setStatus(null);
     setIsLoading(true);
-    
+
     try {
       await saveTopologyData(items, authCtx);
-      setStatus({ type: "success", message: `Saved ${items.length} topology categories to admin/topology.` });
+      setStatus({
+        type: "success",
+        message: `Saved ${items.length} topology categories to admin/topology.`,
+      });
     } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: `Failed to save topology data: ${err.message}` });
+      setStatus({
+        type: "error",
+        message: `Failed to save topology data: ${err.message}`,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -30,13 +38,26 @@ const ManageTopology = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Manage Topology</h1>
-          <p className="text-gray-600">Create and manage intention topology categories and their associated intentions</p>
+          <button
+            onClick={() => navigate("/admin/dashboard")}
+            className="text-blue-500 hover:text-blue-700 mb-4 flex items-center gap-1"
+          >
+            Back to Dashboard
+          </button>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            Manage Typology
+          </h1>
+          <p className="text-gray-600">
+            Create and manage intention topology categories and their associated
+            intentions
+          </p>
         </div>
 
         {/* Mode Toggle */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Input Mode</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            Input Mode
+          </h2>
           <div className="flex gap-4">
             <button
               onClick={() => setMode("form")}
@@ -73,26 +94,24 @@ const ManageTopology = () => {
 
         {/* Render appropriate mode component */}
         {mode === "form" && (
-          <FormMode 
-            onSave={handleSave} 
-            isLoading={isLoading} 
-          />
+          <FormMode onSave={handleSave} isLoading={isLoading} />
         )}
-        
+
         {mode === "json" && (
-          <JsonMode 
-            onSave={handleSave} 
-            isLoading={isLoading} 
-          />
+          <JsonMode onSave={handleSave} isLoading={isLoading} />
         )}
 
         {mode === "view" && <ViewMode />}
 
         {/* Status Messages */}
         {status && (
-          <div className={`rounded-lg p-4 mb-6 ${
-            status.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-          }`}>
+          <div
+            className={`rounded-lg p-4 mb-6 ${
+              status.type === "success"
+                ? "bg-green-100 text-green-800"
+                : "bg-red-100 text-red-800"
+            }`}
+          >
             {status.message}
           </div>
         )}

@@ -207,6 +207,11 @@ const AdminDashboard = () => {
       description: "All participant surveys and feedback systems",
       items: [
         {
+          title: "Demography Survey",
+          description: "Participant demographic questions",
+          path: "/admin/demography-survey",
+        },
+        {
           title: "In-Situ Surveys",
           description: "Pop-up surveys triggered by actions",
           path: "/admin/insitu-surveys",
@@ -216,11 +221,6 @@ const AdminDashboard = () => {
           title: "Experience Survey",
           description: "Session experience questions",
           path: "/admin/experience-survey",
-        },
-        {
-          title: "Demography Survey",
-          description: "Participant demographic questions",
-          path: "/admin/demography-survey",
         },
       ],
     },
