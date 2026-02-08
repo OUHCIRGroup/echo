@@ -2,6 +2,8 @@
 
 ECHO provides an extensible ecosystem for designing, deploying, and analyzing mixed-method human–AI studies.
 
+## Complete Demo Video: https://drive.google.com/file/d/1T16fFcsGkQIPIIHZsaMCFw8yEAn2V5ER/view?usp=share_link
+
 ## Table of Contents
 
 1. [Introduction](#introduction)
