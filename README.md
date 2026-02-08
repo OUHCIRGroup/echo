@@ -437,23 +437,9 @@ Typology Survey Question Data:
 Task Questions Data:
 
 ```bash
-[
-  {
-    "id": 1,
-    "title": "Assess the impacts of using AI in hiring processes",
-    "description": "Assess the impacts of using AI in hiring processes, considering various societal, cultural and ethical aspects. Should we use AI in hiring processes and why?"
-  },
-  {
-    "id": 2,
-    "title": "Investigate the balance between privacy and public safety in the use of surveillance cameras in urban areas",
-    "description": "Investigate the balance between privacy and public safety in the use of surveillance cameras in urban areas, considering legal, ethical, and technological perspectives. Should we use surveillance cameras in urban areas and why?"
-  },
-  {
-    "id": 3,
-    "title": "Compare the Keto, Vegan, and Mediterranean diets",
-    "description": "Compare the Keto, Vegan, and Mediterranean diets focusing on their nutritional profiles, suitability for various age groups, and effects on diabetes and heart health. Please rank the three diets and explain your decision."
-  },
-]
+Assess AI in hiring | Consider societal and ethical aspects.
+Balance privacy and surveillance | Legal, ethical, technological perspectives.
+Compare diets | Keto, Vegan, Mediterranean — effects on health.
 ```
 
 Session Experience Data:
