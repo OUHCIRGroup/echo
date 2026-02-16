@@ -467,6 +467,25 @@ Session Experience Data:
 ]
 ```
 
+## Cite Paper
+
+APA format:
+
+```bash
+Liu, J., Dinesh, N., & Yu, R. (2026). ECHO: An Open Research Platform for Evaluation of Chat, Human Behavior, and Outcomes. arXiv preprint arXiv:2602.10295.
+```
+
+BibTex format:
+
+```bash
+@article{liu2026echo,
+  title={ECHO: An Open Research Platform for Evaluation of Chat, Human Behavior, and Outcomes},
+  author={Liu, Jiqun and Dinesh, Nischal and Yu, Ran},
+  journal={arXiv preprint arXiv:2602.10295},
+  year={2026}
+}
+```
+
 ## Support
 
 If you encounter any difficulties or issues, feel free to contact us at jiqunliu@ou.edu.
