@@ -1,4 +1,4 @@
-# ECHO: An Open Research Platform for Evaluation of Chat, Human Behavior, and Outcomes
+# ECHO 2.0: An Open Research Platform for Evaluation of Chat, Human Behavior, and Outcomes
 
 ECHO provides an extensible ecosystem for designing, deploying, and analyzing mixed-method human–AI studies.
 
@@ -49,7 +49,7 @@ npm --version
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/OUHCIRGroup/echo
+git clone -b echo-2.0 https://github.com/OUHCIRGroup/echo
 ```
 
 ```bash
@@ -245,15 +245,15 @@ REACT_APP_ADMIN_SETUP_CODE=your_secret_code_here
 
 ### Step 6: Configure API Keys
 
-**Note:** While this guide uses OpenAI and Brave Search, ECHO supports any compatible chat and search APIs. You can modify the API endpoints in your codebase to connect alternative providers (e.g., Google Gemini,Anthropic Claude, Grok, Google Search, Bing Search).
+**Note:** ECHO 2.0 supports OpenAI, Google Gemini, Anthropic Claude, and Hugging Face as LLM providers. Select your preferred provider in the Admin API Settings page and enter the corresponding API key. A Brave Search API key is always required for the search task regardless of LLM provider.
 
 Both API keys are configured through the Admin Dashboard.
 
 1. Log in to admin panel at `http://localhost:3000/admin/login`
 2. Click **API Settings**
-3. Enter both API keys:
-   - **OpenAI API Key** (for ChatGPT task)
-   - **Brave Search API Key** (for search task)
+3. Enter your API keys:
+   - **LLM Provider** — select from OpenAI, Google Gemini, Anthropic Claude, or Hugging Face and enter the corresponding API key
+   - **Brave Search API Key** (for search task, starts with BSA)
 4. Click **Save**
 
 #### How to Get OpenAI API Key
@@ -309,7 +309,6 @@ Access at `/admin/login`
 | **Manage Typology**            | Configure intention categories                                                         |
 | **Condition Assignment**       | Assign participants to conditionA or conditionB automatically                          |
 | **API Settings**               | Configure LLM provider (OpenAI, Gemini, Claude, Hugging Face) and Brave Search API key |
-| keys                           |
 | **View Participant Responses** | Export data as CSV                                                                     |
 
 ---
