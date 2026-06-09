@@ -524,6 +524,7 @@ const TaskContext = createContext({
   promptIDForRating: null,
   triggerAfterResponse: null,
   isTasksLoading: true,
+  userCondition: null,
   setShowEditNoteReminder: () => {},
   setShowPopUp: () => {},
   setShowSaveButton: () => {},
@@ -562,6 +563,7 @@ export const TaskContextProvider = (props) => {
   const [allResponsesRated, setAllResponsesRatedState] = useState(false);
   const [triggerAfterResponse, setTriggerAfterResponseState] = useState(null);
   const [isTasksLoading, setIsTasksLoading] = useState(true);
+  const [userCondition, setUserCondition] = useState(null);
   const authCtx = useContext(AuthContext);
 
   // Helper function to generate a Latin Square
@@ -684,6 +686,7 @@ export const TaskContextProvider = (props) => {
         ) {
           console.log("Found existing complete tasks:", userData.tasks);
           setTasksState(userData.tasks);
+          setUserCondition(userData.condition || null);
           setIsTasksLoading(false);
           return userData.tasks;
         }
@@ -764,6 +767,7 @@ export const TaskContextProvider = (props) => {
     firstTask: tasks.firstTask,
     firstTaskTopic: tasks.firstTaskTopic,
     firstTaskDescription: tasks.firstTaskDescription,
+    userCondition,
     timeRemaining,
     queryCount,
     allResponsesRated,

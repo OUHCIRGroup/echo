@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase-config";
 import AuthContext from "../../context/auth-context";
 import { useNavigate } from "react-router-dom";
+import { clearSettingsCache } from "../../utils/apiSettings";
 
 const ManageSettings = () => {
   const [settings, setSettings] = useState({
@@ -10,10 +11,19 @@ const ManageSettings = () => {
     bingApiKey: "",
     braveSearchApiKey: "",
   });
+  const [llmProvider, setLlmProvider] = useState("openai");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [claudeApiKey, setClaudeApiKey] = useState("");
+  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState("");
+  const [huggingFaceModel, setHuggingFaceModel] = useState("");
   const [showKeys, setShowKeys] = useState({
     openaiApiKey: false,
     bingApiKey: false,
     braveSearchApiKey: false,
+    geminiApiKey: false,
+    claudeApiKey: false,
+    huggingFaceApiKey: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -21,7 +31,6 @@ const ManageSettings = () => {
   const authCtx = useContext(AuthContext);
   const navigate = useNavigate();
 
-  // Load existing settings for current user on mount
   useEffect(() => {
     const loadSettings = async () => {
       if (!authCtx?.user?.uid) {
@@ -30,7 +39,6 @@ const ManageSettings = () => {
       }
 
       try {
-        // Load user-specific settings from admin/settings/users/{uid}
         const userSettingsDoc = doc(
           db,
           "admin",
@@ -42,13 +50,19 @@ const ManageSettings = () => {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
+          console.log("[ManageSettings] Loaded selectedModel:", data.selectedModel);
           setSettings({
             openaiApiKey: data.openaiApiKey || "",
             bingApiKey: data.bingApiKey || "",
             braveSearchApiKey: data.braveSearchApiKey || "",
           });
+          if (data.llmProvider) setLlmProvider(data.llmProvider);
+          setSelectedModel(data.selectedModel || "");
+          if (data.geminiApiKey) setGeminiApiKey(data.geminiApiKey);
+          if (data.claudeApiKey) setClaudeApiKey(data.claudeApiKey);
+          if (data.huggingFaceApiKey) setHuggingFaceApiKey(data.huggingFaceApiKey);
+          if (data.huggingFaceModel) setHuggingFaceModel(data.huggingFaceModel);
         }
-        // If no user-specific settings, fields remain empty for user to fill in
       } catch (error) {
         console.error("Error loading settings:", error);
         setStatus({ type: "error", message: "Failed to load settings" });
@@ -61,17 +75,11 @@ const ManageSettings = () => {
   }, [authCtx?.user?.uid]);
 
   const handleInputChange = (key, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   const toggleShowKey = (key) => {
-    setShowKeys((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSave = async () => {
@@ -87,7 +95,6 @@ const ManageSettings = () => {
     setStatus(null);
 
     try {
-      // Save to user-specific location: admin/settings/users/{uid}
       const userSettingsDoc = doc(
         db,
         "admin",
@@ -95,18 +102,34 @@ const ManageSettings = () => {
         "users",
         authCtx.user.uid,
       );
+      console.log("[ManageSettings] Saving selectedModel:", selectedModel);
       await setDoc(
         userSettingsDoc,
         {
           openaiApiKey: settings.openaiApiKey.trim(),
           bingApiKey: settings.bingApiKey.trim(),
           braveSearchApiKey: settings.braveSearchApiKey.trim(),
+          llmProvider,
+          selectedModel,
+          geminiApiKey: geminiApiKey.trim(),
+          claudeApiKey: claudeApiKey.trim(),
+          huggingFaceApiKey: huggingFaceApiKey.trim(),
+          huggingFaceModel: huggingFaceModel.trim(),
           updatedAt: serverTimestamp(),
           userEmail: authCtx?.user?.email || null,
         },
         { merge: true },
       );
 
+      // Mirror braveSearchApiKey and llmProvider to global doc for Cloud Function access
+      const globalUpdate = { llmProvider };
+      if (settings.braveSearchApiKey.trim()) {
+        globalUpdate.braveSearchApiKey = settings.braveSearchApiKey.trim();
+      }
+      const globalSettingsDoc = doc(db, "admin", "settings");
+      await setDoc(globalSettingsDoc, globalUpdate, { merge: true });
+
+      clearSettingsCache();
       setStatus({ type: "success", message: "Settings saved successfully!" });
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -154,47 +177,6 @@ const ManageSettings = () => {
     }
   };
 
-  // const handleTestBrave = async () => {
-  //   if (!settings.braveSearchApiKey) {
-  //     setStatus({
-  //       type: "error",
-  //       message: "Please enter a Brave Search API key first",
-  //     });
-  //     return;
-  //   }
-
-  //   setStatus({ type: "info", message: "Testing Brave Search API key..." });
-
-  //   try {
-  //     const response = await fetch(
-  //       `https://api.search.brave.com/res/v1/web/search?q=test&count=1`,
-  //       {
-  //         headers: {
-  //           Accept: "application/json",
-  //           "X-Subscription-Token": settings.braveSearchApiKey,
-  //         },
-  //       }
-  //     );
-
-  //     if (response.ok) {
-  //       setStatus({
-  //         type: "success",
-  //         message: "Brave Search API key is valid!",
-  //       });
-  //     } else {
-  //       setStatus({
-  //         type: "error",
-  //         message: "Brave Search API key is invalid",
-  //       });
-  //     }
-  //   } catch (error) {
-  //     setStatus({
-  //       type: "error",
-  //       message: "Failed to test Brave API: " + error.message,
-  //     });
-  //   }
-  // };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -202,6 +184,34 @@ const ManageSettings = () => {
       </div>
     );
   }
+
+  const modelOptions = {
+    openai: [
+      { value: "gpt-4o-mini", label: "GPT-4o Mini (default)" },
+      { value: "gpt-4o", label: "GPT-4o" },
+      { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+      { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    ],
+    gemini: [
+      { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (default)" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+      { value: "gemini-2.0-pro", label: "Gemini 2.0 Pro" },
+    ],
+    claude: [
+      { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 (default)" },
+      { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+      { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
+      { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+    ],
+  };
+
+  const providers = [
+    { value: "openai", label: "OpenAI", description: "GPT-4o-mini" },
+    { value: "gemini", label: "Google Gemini", description: "Gemini 2.0 Flash" },
+    { value: "claude", label: "Anthropic Claude", description: "Claude Sonnet 4.5" },
+    { value: "huggingface", label: "Hugging Face", description: "Open-source inference" },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -237,89 +247,242 @@ const ManageSettings = () => {
           </div>
         </div>
 
-        {/* Settings Form */}
         <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6">
-          {/* OpenAI API Key */}
+          {/* LLM Provider */}
           <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              OpenAI API Key
+            <label className="block text-gray-700 font-medium mb-1">
+              LLM Provider
             </label>
-            <p className="text-gray-500 text-sm mb-2">
-              Used for ChatGPT task. Get your key from{" "}
-              <a
-                href="https://platform.openai.com/api-keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                OpenAI Platform
-              </a>
+            <p className="text-gray-500 text-sm mb-3">
+              Choose which AI provider powers the chat interface and AI summary.
             </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showKeys.openaiApiKey ? "text" : "password"}
-                  value={settings.openaiApiKey}
-                  onChange={(e) =>
-                    handleInputChange("openaiApiKey", e.target.value)
-                  }
-                  placeholder="sk-..."
-                  className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => toggleShowKey("openaiApiKey")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {providers.map((p) => (
+                <label
+                  key={p.value}
+                  className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    llmProvider === p.value
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
-                  {showKeys.openaiApiKey ? "Hide" : "Show"}
-                </button>
-              </div>
-              <button
-                onClick={handleTestOpenAI}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-              >
-                Test
-              </button>
+                  <input
+                    type="radio"
+                    name="llmProvider"
+                    value={p.value}
+                    checked={llmProvider === p.value}
+                    onChange={() => { setLlmProvider(p.value); setSelectedModel(""); }}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-800 text-sm">{p.label}</div>
+                    <div className="text-gray-500 text-xs">{p.description}</div>
+                  </div>
+                </label>
+              ))}
             </div>
-          </div>
 
-          {/* Bing API Key */}
-          {/* <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Bing Search API Key
-            </label>
-            <p className="text-gray-500 text-sm mb-2">
-              Used for Bing search task. Get your key from{" "}
-              <a
-                href="https://azure.microsoft.com/en-us/services/cognitive-services/bing-web-search-api/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                Microsoft Azure
-              </a>
-            </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showKeys.bingApiKey ? "text" : "password"}
-                  value={settings.bingApiKey}
-                  onChange={(e) =>
-                    handleInputChange("bingApiKey", e.target.value)
-                  }
-                  placeholder="Enter Bing API key..."
-                  className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => toggleShowKey("bingApiKey")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                >
-                  {showKeys.bingApiKey ? "Hide" : "Show"}
-                </button>
+            {/* Conditional key inputs */}
+            {llmProvider === "openai" && (
+              <div>
+                <label className="block text-gray-600 text-sm font-medium mb-1">
+                  OpenAI API Key
+                </label>
+                <p className="text-gray-400 text-xs mb-2">
+                  Get your key from{" "}
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    OpenAI Platform
+                  </a>
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showKeys.openaiApiKey ? "text" : "password"}
+                      value={settings.openaiApiKey}
+                      onChange={(e) =>
+                        handleInputChange("openaiApiKey", e.target.value)
+                      }
+                      placeholder="sk-..."
+                      className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey("openaiApiKey")}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showKeys.openaiApiKey ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleTestOpenAI}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                  >
+                    Test
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-gray-600 text-sm font-medium mb-1">Model</label>
+                  <select
+                    value={selectedModel || modelOptions.openai[0].value}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {modelOptions.openai.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-          </div> */}
+            )}
+
+            {llmProvider === "gemini" && (
+              <div>
+                <label className="block text-gray-600 text-sm font-medium mb-1">
+                  Gemini API Key
+                </label>
+                <p className="text-gray-400 text-xs mb-2">
+                  Get your key from{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    Google AI Studio
+                  </a>
+                </p>
+                <div className="relative">
+                  <input
+                    type={showKeys.geminiApiKey ? "text" : "password"}
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    placeholder="AIza..."
+                    className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleShowKey("geminiApiKey")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showKeys.geminiApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-gray-600 text-sm font-medium mb-1">Model</label>
+                  <select
+                    value={selectedModel || modelOptions.gemini[0].value}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {modelOptions.gemini.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {llmProvider === "claude" && (
+              <div>
+                <label className="block text-gray-600 text-sm font-medium mb-1">
+                  Anthropic API Key
+                </label>
+                <p className="text-gray-400 text-xs mb-2">
+                  Get your key from{" "}
+                  <a
+                    href="https://console.anthropic.com/settings/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    Anthropic Console
+                  </a>
+                </p>
+                <div className="relative">
+                  <input
+                    type={showKeys.claudeApiKey ? "text" : "password"}
+                    value={claudeApiKey}
+                    onChange={(e) => setClaudeApiKey(e.target.value)}
+                    placeholder="sk-ant-..."
+                    className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleShowKey("claudeApiKey")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showKeys.claudeApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-gray-600 text-sm font-medium mb-1">Model</label>
+                  <select
+                    value={selectedModel || modelOptions.claude[0].value}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {modelOptions.claude.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {llmProvider === "huggingface" && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-gray-600 text-sm font-medium mb-1">
+                    Hugging Face API Key
+                  </label>
+                  <p className="text-gray-400 text-xs mb-2">
+                    Get your key from{" "}
+                    <a
+                      href="https://huggingface.co/settings/tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline"
+                    >
+                      Hugging Face Settings
+                    </a>
+                  </p>
+                  <div className="relative">
+                    <input
+                      type={showKeys.huggingFaceApiKey ? "text" : "password"}
+                      value={huggingFaceApiKey}
+                      onChange={(e) => setHuggingFaceApiKey(e.target.value)}
+                      placeholder="hf_..."
+                      className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey("huggingFaceApiKey")}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showKeys.huggingFaceApiKey ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-600 text-sm font-medium mb-1">
+                    Model Name
+                  </label>
+                  <input
+                    type="text"
+                    value={huggingFaceModel}
+                    onChange={(e) => setHuggingFaceModel(e.target.value)}
+                    placeholder="mistralai/Mistral-7B-Instruct-v0.2"
+                    className="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Brave Search API Key */}
           <div>
@@ -356,12 +519,6 @@ const ManageSettings = () => {
                   {showKeys.braveSearchApiKey ? "Hide" : "Show"}
                 </button>
               </div>
-              {/* <button
-                onClick={handleTestBrave}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-              >
-                Test
-              </button> */}
             </div>
           </div>
 

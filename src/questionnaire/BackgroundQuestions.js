@@ -223,6 +223,35 @@ import { useNavigate } from "react-router-dom";
 import AuthContext from "../context/auth-context";
 import { FlowContext } from "../context/flow-context";
 
+const assignConditionIfNeeded = async (usersRef, responses) => {
+  try {
+    const userSnap = await getDoc(usersRef);
+    if (userSnap.exists() && userSnap.data().condition) return;
+
+    const configSnap = await getDoc(doc(db, "admin", "conditionAssignment"));
+    if (!configSnap.exists()) return;
+
+    const { mode, questionKey, mapping } = configSnap.data();
+
+    let condition = null;
+    if (mode === "random") {
+      condition = Math.random() < 0.5 ? "conditionA" : "conditionB";
+    } else if (mode === "questionnaire" && questionKey && mapping) {
+      const answer = responses[questionKey];
+      const answerKey = Array.isArray(answer) ? answer[0] : answer;
+      condition = answerKey && mapping[answerKey]
+        ? mapping[answerKey]
+        : Math.random() < 0.5 ? "conditionA" : "conditionB";
+    }
+
+    if (condition) {
+      await setDoc(usersRef, { condition }, { merge: true });
+    }
+  } catch (error) {
+    console.error("Error assigning condition:", error);
+  }
+};
+
 const DemographyQuestions = ({ onResponsesChange }) => {
   const [responses, setResponses] = useState({});
   const [demographyQuestions, setDemographyQuestions] = useState([]);
@@ -318,6 +347,7 @@ const DemographyQuestions = ({ onResponsesChange }) => {
         },
         { merge: true },
       );
+      await assignConditionIfNeeded(usersRef, responses);
       flowCtx.setDemographyCompleted(true);
       navigate("/");
     } catch (error) {

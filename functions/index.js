@@ -1,89 +1,78 @@
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-const fetch = require("node-fetch");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
 
-admin.initializeApp();
+initializeApp();
 
-exports.fetchAndStoreWebPage = functions.https.onCall(async (data, context) => {
-  // Ensure the user is authenticated
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      "unauthenticated",
-      "The function must be called while authenticated."
-    );
-  }
-
-  const url = data.url;
-  const userId = context.auth.uid;
-  const customID = data.customID;
-
-  try {
-    // Fetch the web page content
-    const response = await fetch(url);
-    const content = await response.text();
-
-    // Reference to a new file in Cloud Storage
-    const fileRef = admin.storage().bucket().file(`${userId}/${customID}.html`);
-
-    // Upload the fetched content to Cloud Storage
-    await fileRef.save(content, {
-      metadata: {
-        contentType: "text/html",
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error("Error fetching and storing web page:", error);
-    throw new functions.https.HttpsError(
-      "internal",
-      "Failed to fetch and store web page."
-    );
-  }
-});
-
-exports.braveSearch = functions.https.onCall(async (data, context) => {
-  const { query } = data;
-  
+exports.braveSearch = onCall({ cors: true }, async (request) => {
+  const query = request.data.query;
   if (!query) {
-    throw new functions.https.HttpsError('invalid-argument', 'Query is required');
+    throw new HttpsError("invalid-argument", "Query is required");
   }
 
-  // Get API key from Firebase config with fallback
-  const config = functions.config();
-  console.log('Full config:', JSON.stringify(config)); // Debug log
+  const db = getFirestore();
+  const settingsSnap = await db.doc("admin/settings").get();
+  const apiKey = (settingsSnap.exists && settingsSnap.data().braveSearchApiKey)
+    ? settingsSnap.data().braveSearchApiKey
+    : process.env.BRAVE_SEARCH_API_KEY;
 
-  const apiKey = config.brave?.api_key || process.env.BRAVE_SEARCH_API_KEY;
-  
-  const endpoint = "https://api.search.brave.com/res/v1/web/search";
-  const params = new URLSearchParams({ 
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "Brave Search API key not configured");
+  }
+
+  const params = new URLSearchParams({
     q: query,
-    count: 20,
+    count: "20",
     country: "US",
     search_lang: "en",
     ui_lang: "en-US",
     safesearch: "moderate",
-    freshness: "none",
-    text_decorations: false,
-    spellcheck: true
   });
+
+  const endpoint = "https://api.search.brave.com/res/v1/web/search";
 
   try {
     const response = await fetch(`${endpoint}?${params}`, {
-      headers: { 
+      headers: {
         "Accept": "application/json",
-        "X-Subscription-Token": apiKey 
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
       },
     });
 
     if (!response.ok) {
-      throw new functions.https.HttpsError('internal', `Brave Search API request failed: ${response.status}`);
+      throw new HttpsError("internal", `Brave Search API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Brave Search API Error:", error);
-    throw new functions.https.HttpsError('internal', 'Search request failed');
+    throw new HttpsError("internal", "Search request failed: " + error.message);
+  }
+});
+
+exports.fetchAndStoreWebPage = onCall({ cors: true }, async (request) => {
+  const { url, customID } = request.data;
+  if (!url || !customID) {
+    throw new HttpsError("invalid-argument", "URL and customID are required");
+  }
+
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new HttpsError("unauthenticated", "Must be authenticated");
+  }
+
+  try {
+    const response = await fetch(url);
+    const html = await response.text();
+
+    const { getStorage } = require("firebase-admin/storage");
+    const bucket = getStorage().bucket();
+    const file = bucket.file(`${userId}/${customID}.html`);
+    await file.save(html, { contentType: "text/html" });
+
+    return { success: true };
+  } catch (error) {
+    throw new HttpsError("internal", "Failed to fetch and store page: " + error.message);
   }
 });

@@ -107,6 +107,90 @@ Firebase stores all your research data.
 4. Enter a nickname and click **Register app**
 5. **Keep this page open** — you need the configuration values next
 
+#### 3.6 Deploy Cloud Functions
+
+ECHO uses Firebase Cloud Functions to handle Brave Search API calls securely. You need to deploy these once before the search feature works.
+
+**Prerequisites:**
+
+Install Firebase CLI:
+
+```bash
+npm install -g firebase-tools
+```
+
+Install Google Cloud CLI: Download from https://cloud.google.com/sdk/docs/install
+
+**Deploy Steps:**
+
+1. Log in to Firebase:
+
+```bash
+firebase login
+```
+
+2. Log in to Google Cloud:
+
+```bash
+gcloud auth login
+```
+
+3. Initialize Firebase in the project:
+
+```bash
+firebase init
+```
+
+When prompted: select **Functions** → **Use an existing project** → **JavaScript** → **No** to ESLint → **No** to overwriting files → **Yes** to install dependencies.
+
+4. Enable required APIs (replace `YOUR_PROJECT_ID`):
+
+```bash
+gcloud services enable cloudfunctions.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable cloudbuild.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable run.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable artifactregistry.googleapis.com --project=YOUR_PROJECT_ID
+```
+
+5. Grant Owner permissions:
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="user:YOUR_EMAIL" \
+  --role="roles/owner"
+```
+
+6. Create App Engine instance:
+
+```bash
+gcloud app create --project=YOUR_PROJECT_ID --region=us-central
+```
+
+7. Deploy the functions:
+
+```bash
+cd functions && npm install && cd ..
+firebase deploy --only functions
+```
+
+8. Allow public access to the functions:
+
+```bash
+gcloud run services add-iam-policy-binding bravesearch \
+  --region=us-central1 \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project=YOUR_PROJECT_ID
+
+gcloud run services add-iam-policy-binding fetchandstorewebpage \
+  --region=us-central1 \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project=YOUR_PROJECT_ID
+```
+
+> **Note:** Cloud Functions require the Blaze (pay-as-you-go) billing plan. The free tier includes 2 million function calls/month — more than sufficient for research studies.
+
 ---
 
 ### Step 4: Configure Environment Variables
@@ -215,16 +299,18 @@ Opens at `http://localhost:3000`
 
 Access at `/admin/login`
 
-| Feature                        | Description                                   |
-| ------------------------------ | --------------------------------------------- |
-| **Study Settings**             | Task order, note taking, minimum interactions |
-| **Manage Study Flow**          | Enable/disable and reorder study steps        |
-| **Insert/View Tasks**          | Create and view research tasks                |
-| **Manage Experience Survey**   | Edit post-task questions                      |
-| **Manage Demography Survey**   | Edit background questions                     |
-| **Manage Typology**            | Configure intention categories                |
-| **API Settings**               | Enter OpenAI and Brave Search API keys        |
-| **View Participant Responses** | Export data as CSV                            |
+| Feature                        | Description                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| **Study Settings**             | Task order, note taking, minimum interactions                                          |
+| **Manage Study Flow**          | Enable/disable and reorder study steps                                                 |
+| **Insert/View Tasks**          | Create and view research tasks                                                         |
+| **Manage Experience Survey**   | Edit post-task questions                                                               |
+| **Manage Demography Survey**   | Edit background questions                                                              |
+| **Manage Typology**            | Configure intention categories                                                         |
+| **Condition Assignment**       | Assign participants to conditionA or conditionB automatically                          |
+| **API Settings**               | Configure LLM provider (OpenAI, Gemini, Claude, Hugging Face) and Brave Search API key |
+| keys                           |
+| **View Participant Responses** | Export data as CSV                                                                     |
 
 ---
 

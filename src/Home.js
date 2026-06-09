@@ -641,7 +641,11 @@ const Home = ({ onSelectItem }) => {
   // Get the actual path for a step (handle task type replacement)
   const getStepPath = (step) => {
     if (step.isTaskStep) {
-      return `/${firstTaskShort}?firstTask=true&flowState=setTask1Completed`;
+      const userCondition = taskCtx.userCondition || null;
+      const taskPath = firstTaskShort === "search"
+        ? (userCondition === "conditionA" ? "search" : "search-ai")
+        : firstTaskShort;
+      return `/${taskPath}?firstTask=true&flowState=setTask1Completed`;
     }
     if (step.requiresTask) {
       const flowStateMap = {

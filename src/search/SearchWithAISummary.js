@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import AuthContext from "../context/auth-context";
 import TaskContext from "../context/task-context";
-import send_message_icon from "../assets/msg_entry/send_message_icon.svg";
 import search_icon from "../assets/common/search_icon.svg";
 import { db } from "../firebase-config";
 import { uid } from "uid";
@@ -15,10 +14,14 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { callLLM } from "../utils/llmClient";
 import SingleResultContainer from "./SingleResultContainer";
 import EditNoteReminder from "../chat/EditNoteReminder";
 
-const SearchPage = ({
+const AI_SYSTEM_PROMPT =
+  "You are a research assistant. Given the user query, provide a concise 3 to 5 sentence summary of what is known about this topic. Be factual and neutral.";
+
+const SearchWithAISummary = ({
   triggerAfterSearchQuery,
   markResponseReceived,
   checkPendingResponseSurvey,
@@ -29,7 +32,10 @@ const SearchPage = ({
   const [typingStartTime, setTypingStartTime] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingQuery, setPendingQuery] = useState(null); // Store query while survey is showing
+  const [aiSummary, setAiSummary] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [adminId, setAdminId] = useState(null);
+  const [pendingQuery, setPendingQuery] = useState(null);
 
   const authCtx = useContext(AuthContext);
   const taskCtx = useContext(TaskContext);
@@ -38,7 +44,21 @@ const SearchPage = ({
 
   const textRef = useRef();
 
-  // Handle survey completion - execute pending search
+  useEffect(() => {
+    const resolveAdminId = async () => {
+      if (!authCtx.user?.uid) return;
+      try {
+        const id = authCtx.isAdmin
+          ? authCtx.user.uid
+          : await authCtx.getParticipantAdminId(authCtx.user.uid);
+        setAdminId(id);
+      } catch (error) {
+        console.error("Error resolving admin ID:", error);
+      }
+    };
+    resolveAdminId();
+  }, [authCtx.user, authCtx.isAdmin, authCtx.getParticipantAdminId]);
+
   const handleSurveyComplete = () => {
     if (pendingQuery) {
       const queryToExecute = pendingQuery;
@@ -47,20 +67,15 @@ const SearchPage = ({
     }
   };
 
-  // Expose the handler to parent via ref
   if (onSurveyCompleteRef) {
     onSurveyCompleteRef.current = handleSurveyComplete;
   }
 
   const handleSearchResultClick = async (clickedObj) => {
-    // IMPORTANT: Open the URL first, before any async operations
     window.open(clickedObj.url, "_blank");
 
     try {
-      const fetchAndStoreWebPage = httpsCallable(
-        functions,
-        "fetchAndStoreWebPage",
-      );
+      const fetchAndStoreWebPage = httpsCallable(functions, "fetchAndStoreWebPage");
 
       fetchAndStoreWebPage({
         url: clickedObj.url,
@@ -112,7 +127,7 @@ const SearchPage = ({
     }
   };
 
-  const storeSearchResults = async (query, results, queryID) => {
+  const storeSearchResults = async (searchQuery, results, qID, aiSummaryText) => {
     const searchDocRef = doc(db, "searchTask", user.uid);
 
     const simplifiedSearchResults = results.map((result) => ({
@@ -124,27 +139,22 @@ const SearchPage = ({
 
     const existingDoc = await getDoc(searchDocRef);
 
+    const entry = {
+      ts: Timestamp.now(),
+      query: searchQuery,
+      queryID: qID,
+      searchResults: simplifiedSearchResults,
+      clickedResults: [],
+      aiSummary: aiSummaryText,
+    };
+
     if (existingDoc.exists()) {
       await updateDoc(searchDocRef, {
-        queryInteractions: arrayUnion({
-          ts: Timestamp.now(),
-          query: query,
-          queryID: queryID,
-          searchResults: simplifiedSearchResults,
-          clickedResults: [],
-        }),
+        queryInteractions: arrayUnion(entry),
       });
     } else {
       await setDoc(searchDocRef, {
-        queryInteractions: [
-          {
-            ts: Timestamp.now(),
-            query: query,
-            queryID: queryID,
-            searchResults: simplifiedSearchResults,
-            clickedResults: [],
-          },
-        ],
+        queryInteractions: [entry],
         userID: user.uid,
       });
     }
@@ -161,16 +171,33 @@ const SearchPage = ({
     }
   };
 
-  // Actually execute the search
   const executeSearch = async (searchQuery) => {
     setIsLoading(true);
+    setIsAiLoading(true);
+    setAiSummary(null);
     setTypingStartTime(null);
     taskCtx.setQueryCount();
     const qID = uid();
     setQueryID(qID);
 
+    // Fire both in parallel; AI box stays visible (isAiLoading=true) even after
+    // search results arrive, so the box never disappears when results appear.
+    const braveSearchFn = httpsCallable(functions, "braveSearch");
+
+    const aiCallPromise = adminId
+      ? callLLM({
+          adminId,
+          messages: [
+            { role: "system", content: AI_SYSTEM_PROMPT },
+            { role: "user", content: searchQuery },
+          ],
+          maxTokens: 300,
+        })
+      : Promise.reject(new Error("Admin ID not resolved"));
+
+    // Show search results as soon as they arrive — don't wait for AI.
+    let localSearchResults = [];
     try {
-      const braveSearchFn = httpsCallable(functions, "braveSearch");
       const result = await braveSearchFn({ query: searchQuery });
       const data = result.data;
 
@@ -178,7 +205,7 @@ const SearchPage = ({
         throw new Error("No web results found in Brave Search response");
       }
 
-      const localSearchResults = data.web.results.map((result) => ({
+      localSearchResults = data.web.results.map((result) => ({
         title: result.title,
         url: result.url,
         snippet: result.description,
@@ -188,46 +215,53 @@ const SearchPage = ({
         favicon: result.meta_url?.favicon,
       }));
 
-      console.log("First favicon URL:", localSearchResults[0]?.favicon);
-
       setSearchResults(localSearchResults);
-      taskCtx.setShowEditNoteReminder(true);
-      await storeSearchResults(searchQuery, localSearchResults, qID);
-
-      // Mark response received - survey will show before next search query
-      if (markResponseReceived) {
-        markResponseReceived();
-      }
-    } catch (error) {
-      console.error("Error fetching search results:", error);
-      alert("Search failed. Please try again.");
-    } finally {
       setIsLoading(false);
+      taskCtx.setShowEditNoteReminder(true);
+    } catch (error) {
+      console.error("Brave Search failed:", error);
+      alert("Search failed. Please try again.");
+      setIsLoading(false);
+      setIsAiLoading(false);
+      return;
+    }
+
+    // Resolve AI summary independently — box stays visible (spinner) until here.
+    let aiSummaryText = null;
+    try {
+      aiSummaryText = await aiCallPromise;
+    } catch (error) {
+      console.error("AI Summary failed:", error);
+    }
+    setAiSummary(aiSummaryText || "No summary available for this query.");
+    setIsAiLoading(false);
+
+    await storeSearchResults(searchQuery, localSearchResults, qID, aiSummaryText);
+
+    if (markResponseReceived) {
+      markResponseReceived();
     }
   };
 
   const search = async () => {
     if (!query) return;
 
-    // Check if notes need to be edited first
     if (taskCtx.showEditNoteReminder) {
       taskCtx.setShowPopUp(true);
       return;
     }
 
-    // Check for pending "afterResponseReceive" survey before executing search
     if (checkPendingResponseSurvey && checkPendingResponseSurvey()) {
-      // Survey is now showing, store the query to execute after survey completes
       setPendingQuery(query);
       return;
     }
 
-    // No pending survey, execute search immediately
     await executeSearch(query);
   };
 
   return (
-    <div className="p-4 w-full bg-white overflow-y-auto ">
+    <div className="p-4 w-full bg-white overflow-y-auto">
+      {/* Search bar */}
       <div className="flex flex-row space-x-6">
         <div className="rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-100 px-8 py-3 min-h-11 flex flex-grow items-center">
           <textarea
@@ -248,6 +282,23 @@ const SearchPage = ({
           </button>
         </div>
       </div>
+
+      {/* AI Summary — shown above results, hidden if call failed */}
+      {(isAiLoading || aiSummary) && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-blue-800 font-semibold text-sm mb-2">AI Summary</p>
+          {isAiLoading ? (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              <span className="text-blue-600 text-sm">Generating summary...</span>
+            </div>
+          ) : (
+            <p className="text-gray-700 text-sm leading-relaxed">{aiSummary}</p>
+          )}
+        </div>
+      )}
+
+      {/* Search results */}
       <div className="flex flex-col space-y-2 mt-4 overflow-y-auto">
         {isLoading ? (
           <p className="text-black text-center">Searching...</p>
@@ -264,13 +315,14 @@ const SearchPage = ({
                   url: page.displayUrl,
                   customID: page.customID,
                   ts: Timestamp.now(),
-                  rank: index + 1, // Track the ranking position (1-based)
+                  rank: index + 1,
                 })
               }
             />
           ))
         )}
       </div>
+
       {taskCtx.showPopUp && (
         <div className="fixed top-0 z-10 left-0 w-screen h-screen flex items-center justify-center">
           <EditNoteReminder />
@@ -280,4 +332,4 @@ const SearchPage = ({
   );
 };
 
-export default SearchPage;
+export default SearchWithAISummary;

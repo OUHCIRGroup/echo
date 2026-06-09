@@ -318,9 +318,8 @@ import ReactMarkdown from "react-markdown";
 import hljs from "highlight.js";
 import TaskContext from "../context/task-context";
 import EditNoteReminder from "./EditNoteReminder";
-import OpenAI from "openai";
 import Reminder from "../common/Reminder";
-import { getOpenAIApiKey } from "../utils/apiSettings";
+import { callLLM } from "../utils/llmClient";
 
 function ChatBox({
   triggerAfterPromptSubmit,
@@ -335,7 +334,7 @@ function ChatBox({
   const [responseID, setResponseID] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [promptResponseArray, setPromptResponseArray] = useState([]);
-  const [openaiClient, setOpenaiClient] = useState(null);
+  const [adminId, setAdminId] = useState(null);
   const [apiKeyError, setApiKeyError] = useState(null);
 
   const authCtx = useContext(AuthContext);
@@ -343,58 +342,27 @@ function ChatBox({
 
   const bgObj = { user: "bg-[#f9f9f9]", ai: "bg-[#FFFFFF]" };
 
-  // Initialize OpenAI client with API key from the participant's assigned admin
   useEffect(() => {
-    const initializeOpenAI = async () => {
+    const resolveAdminId = async () => {
       if (!authCtx.user?.uid) return;
-
       try {
-        // Get the adminId associated with this participant
-        let adminId = null;
-
-        // If current user is an admin, use their own keys
-        if (authCtx.isAdmin) {
-          adminId = authCtx.user.uid;
-          console.log("User is admin, using own API keys");
-        } else {
-          // Get the adminId from the participant's user document
-          adminId = await authCtx.getParticipantAdminId(authCtx.user.uid);
-          console.log("Participant's adminId:", adminId);
-        }
-
-        if (!adminId) {
+        const id = authCtx.isAdmin
+          ? authCtx.user.uid
+          : await authCtx.getParticipantAdminId(authCtx.user.uid);
+        if (!id) {
           setApiKeyError(
             "No admin associated with this account. Please contact the study administrator.",
           );
           return;
         }
-
-        // Fetch the API key for this admin
-        const apiKey = await getOpenAIApiKey(adminId);
-
-        if (apiKey) {
-          const client = new OpenAI({
-            apiKey: apiKey,
-            dangerouslyAllowBrowser: true,
-          });
-          setOpenaiClient(client);
-          setApiKeyError(null);
-          console.log(
-            "OpenAI client initialized successfully for adminId:",
-            adminId,
-          );
-        } else {
-          setApiKeyError(
-            "OpenAI API key not configured. Please contact the study administrator.",
-          );
-        }
+        setAdminId(id);
+        setApiKeyError(null);
       } catch (error) {
-        console.error("Error initializing OpenAI client:", error);
+        console.error("Error resolving admin ID:", error);
         setApiKeyError("Error initializing AI service. Please try again.");
       }
     };
-
-    initializeOpenAI();
+    resolveAdminId();
   }, [authCtx.user, authCtx.isAdmin, authCtx.getParticipantAdminId]);
 
   // Load existing chat history from Firestore
@@ -446,8 +414,8 @@ function ChatBox({
 
   // Get API response from OpenAI
   const getAPIResponse = async (messages, currentPromptID) => {
-    if (!openaiClient) {
-      console.error("OpenAI client not initialized");
+    if (!adminId) {
+      console.error("Admin ID not resolved");
       return;
     }
 
@@ -465,12 +433,15 @@ function ChatBox({
         content: msg.content,
       }));
 
-      const completion = await openaiClient.chat.completions.create({
-        model: "gpt-4o-mini",
+      const aiResponse = await callLLM({
+        adminId,
         messages: formattedMessages,
+        maxTokens: 1000,
       });
 
-      const aiResponse = completion.choices[0].message.content;
+      if (!aiResponse) {
+        throw new Error("LLM returned no response");
+      }
       const newResponseID = uid();
       setResponseID(newResponseID);
 

@@ -383,12 +383,20 @@ const DEFAULT_STUDY_SETTINGS = {
   consentFormEnabled: true,
 };
 
+const DEFAULT_CONDITION_ASSIGNMENT = {
+  mode: "manual",
+  questionKey: "",
+  mapping: {},
+};
+
 const ManageStudySettings = () => {
   const [settings, setSettings] = useState(DEFAULT_STUDY_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [conditionAssignment, setConditionAssignment] = useState(DEFAULT_CONDITION_ASSIGNMENT);
+  const [demographyQuestions, setDemographyQuestions] = useState([]);
 
   const authCtx = useContext(AuthContext);
   const navigate = useNavigate();
@@ -430,6 +438,31 @@ const ManageStudySettings = () => {
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    const loadConditionConfig = async () => {
+      try {
+        const [conditionSnap, demographySnap] = await Promise.all([
+          getDoc(doc(db, "admin", "conditionAssignment")),
+          getDoc(doc(db, "admin", "demographySurvey")),
+        ]);
+        if (conditionSnap.exists()) {
+          const data = conditionSnap.data();
+          setConditionAssignment({
+            mode: data.mode || "manual",
+            questionKey: data.questionKey || "",
+            mapping: data.mapping || {},
+          });
+        }
+        if (demographySnap.exists()) {
+          setDemographyQuestions(demographySnap.data().questions || []);
+        }
+      } catch (error) {
+        console.error("Error loading condition assignment config:", error);
+      }
+    };
+    loadConditionConfig();
+  }, []);
+
   // Save settings to Firestore
   const saveSettings = async () => {
     setIsSaving(true);
@@ -439,6 +472,13 @@ const ManageStudySettings = () => {
       const docRef = doc(db, "admin", "studySettings");
       await setDoc(docRef, {
         ...settings,
+        updatedAt: serverTimestamp(),
+        updatedBy: authCtx.user?.uid || null,
+      });
+
+      const conditionRef = doc(db, "admin", "conditionAssignment");
+      await setDoc(conditionRef, {
+        ...conditionAssignment,
         updatedAt: serverTimestamp(),
         updatedBy: authCtx.user?.uid || null,
       });
@@ -492,6 +532,24 @@ const ManageStudySettings = () => {
       setSettings((prev) => ({ ...prev, minimumInteractions: numValue }));
       setHasChanges(true);
     }
+  };
+
+  const handleConditionModeChange = (mode) => {
+    setConditionAssignment((prev) => ({ ...prev, mode }));
+    setHasChanges(true);
+  };
+
+  const handleConditionQuestionKeyChange = (questionKey) => {
+    setConditionAssignment((prev) => ({ ...prev, questionKey, mapping: {} }));
+    setHasChanges(true);
+  };
+
+  const handleConditionMappingChange = (optionValue, condition) => {
+    setConditionAssignment((prev) => ({
+      ...prev,
+      mapping: { ...prev.mapping, [optionValue]: condition },
+    }));
+    setHasChanges(true);
   };
 
   if (isLoading) {
@@ -634,6 +692,118 @@ const ManageStudySettings = () => {
                   "All participants use Search"}
                 {settings.surveyType === "random" &&
                   "Random assignment (Chat or Search)"}
+              </span>
+            </div>
+          </div>
+
+          {/* Condition Assignment */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Condition Assignment
+            </h2>
+            <p className="text-gray-600 text-sm mb-4">
+              Assign participants to conditionA or conditionB after they complete the background survey.
+            </p>
+
+            <div className="space-y-3 mb-4">
+              {[
+                { value: "manual", label: "Manual", desc: "No automatic assignment." },
+                { value: "random", label: "Random (50/50)", desc: "Participants are randomly assigned to conditionA or conditionB." },
+                { value: "questionnaire", label: "Questionnaire-based", desc: "Assign condition based on a participant background survey answer." },
+              ].map(({ value, label, desc }) => (
+                <label key={value} className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="conditionMode"
+                    value={value}
+                    checked={conditionAssignment.mode === value}
+                    onChange={(e) => handleConditionModeChange(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-800">{label}</div>
+                    <div className="text-sm text-gray-600">{desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {conditionAssignment.mode === "questionnaire" && (
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Question key (from background survey)
+                  </label>
+                  <select
+                    value={conditionAssignment.questionKey}
+                    onChange={(e) => handleConditionQuestionKeyChange(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">-- Select a question --</option>
+                    {demographyQuestions.map((q) => (
+                      <option key={q.category} value={q.category}>
+                        {q.category}
+                      </option>
+                    ))}
+                  </select>
+                  {demographyQuestions.length === 0 && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                      No background survey questions found. Add questions in Manage Survey first.
+                    </p>
+                  )}
+                </div>
+
+                {conditionAssignment.questionKey && (() => {
+                  const selectedQ = demographyQuestions.find(
+                    (q) => q.category === conditionAssignment.questionKey
+                  );
+                  return selectedQ ? (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">
+                        Map each answer to a condition:
+                      </p>
+                      <div className="space-y-2">
+                        {selectedQ.options.map((option) => (
+                          <div key={option} className="flex items-center gap-4 p-3 border rounded-lg">
+                            <span className="flex-1 text-sm text-gray-800">{option}</span>
+                            <div className="flex gap-6">
+                              {["conditionA", "conditionB"].map((cond) => (
+                                <label key={cond} className="flex items-center gap-1.5 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`mapping-${option}`}
+                                    value={cond}
+                                    checked={conditionAssignment.mapping[option] === cond}
+                                    onChange={() => handleConditionMappingChange(option, cond)}
+                                  />
+                                  <span className="text-sm text-gray-700">{cond}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {Object.keys(conditionAssignment.mapping).length < selectedQ.options.length && (
+                        <p className="text-xs text-yellow-600 mt-2">
+                          Unmapped answers will fall back to random assignment.
+                        </p>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <span className="text-sm text-blue-800">
+                <strong>Current Mode:</strong>{" "}
+                {conditionAssignment.mode === "manual" && "Manual (no automatic assignment)"}
+                {conditionAssignment.mode === "random" && "Random 50/50 split"}
+                {conditionAssignment.mode === "questionnaire" && (
+                  conditionAssignment.questionKey
+                    ? `Questionnaire-based on "${conditionAssignment.questionKey}"`
+                    : "Questionnaire-based (no question selected yet)"
+                )}
               </span>
             </div>
           </div>

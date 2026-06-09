@@ -12,6 +12,7 @@ import DemographyMain from "./questionnaire/BackgroundMain";
 import Logout from "./common/Logout";
 import Home from "./Home";
 import MainSearchTask from "./search/MainSearchTask";
+import MainSearchWithAITask from "./search/MainSearchWithAITask";
 import ExperienceSurveyMain from "./questionnaire/ExperienceSurveyMain";
 import EndOfStudy from "./questionnaire/EndOfStudy";
 import ConsentForm from "./common/Consent";
@@ -132,6 +133,7 @@ function App() {
         <Route path="/logout" element={<Logout />} />
         <Route path="/home" element={<Home />} />
         <Route path="/search" element={<MainSearchTask />} />
+        <Route path="/search-ai" element={<MainSearchWithAITask />} />
         <Route path="/session-experience" element={<ExperienceSurveyMain />} />
         <Route path="/end" element={<EndOfStudy />} />
         <Route path="/pre-task" element={<QuestionnnaireMain />} />
